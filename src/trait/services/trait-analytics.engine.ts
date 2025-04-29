@@ -1,357 +1,649 @@
-import logger from '../../logger';
+/**
+ * Trait Analytics Engine
+ * 
+ * This service provides advanced analytics for traits, including:
+ * - Relationship analysis between traits
+ * - Trait clustering algorithms
+ * - Pattern detection in trait data
+ * - Trait significance analysis
+ * - Comparative trait analytics
+ */
+
+import logger from '../../utils/logger';
 import { Trait, TraitRelationship, TraitCluster, MetaCluster } from '../models/trait.model';
 
 /**
- * Engine for trait relationship and clustering analysis
- * Analyzes trait correlations, patterns, and clusters
+ * Trait Analytics Engine class
+ * Provides advanced analytics capabilities for trait data
  */
 export class TraitAnalyticsEngine {
+  private static readonly CORRELATION_THRESHOLD = 0.6;
+  private static readonly CLUSTER_SIMILARITY_THRESHOLD = 0.7;
+  private static readonly SIGNIFICANT_TRAIT_THRESHOLD = 80;
+  
   /**
-   * Calculate correlation between two traits using a sophisticated multi-factor approach
-   * This implements a more nuanced analysis of trait relationships based on:
-   * - Score proximity
-   * - Category relationships (same, complementary, or contrasting)
-   * - Assessment method consistency
-   * - Assessment timing proximity
+   * Analyze relationships between traits
+   * Identifies correlations, complementary traits, and conflicting traits
+   * 
+   * @param traits - Array of traits to analyze
+   * @returns Array of trait relationships
    */
-  calculateTraitCorrelation(trait1: Trait, trait2: Trait): number {
+  public analyzeTraitRelationships(traits: Trait[]): TraitRelationship[] {
     try {
-      // Score proximity factor (inverse of difference)
-      const scoreDifference = Math.abs(trait1.score - trait2.score) / 100;
-      const scoreProximityFactor = 1 - scoreDifference;
-      
-      // Category relationship factor
-      // Enhanced to recognize hierarchical relationships between categories
-      const categoryRelationships: Record<string, Record<string, number>> = {
-        'Cognitive': { 'Cognitive': 0.8, 'Execution': 0.4, 'Relationship': 0.2, 'Self-Management': 0.3, 'Motivation': 0.3 },
-        'Execution': { 'Cognitive': 0.4, 'Execution': 0.7, 'Relationship': 0.5, 'Self-Management': 0.6, 'Motivation': 0.5 },
-        'Relationship': { 'Cognitive': 0.2, 'Execution': 0.5, 'Relationship': 0.8, 'Self-Management': 0.4, 'Motivation': 0.4 },
-        'Self-Management': { 'Cognitive': 0.3, 'Execution': 0.6, 'Relationship': 0.4, 'Self-Management': 0.8, 'Motivation': 0.7 },
-        'Motivation': { 'Cognitive': 0.3, 'Execution': 0.5, 'Relationship': 0.4, 'Self-Management': 0.7, 'Motivation': 0.8 }
-      };
-      
-      const categoryWeight = categoryRelationships[trait1.category]?.[trait2.category] || 0.1;
-      
-      // Assessment method consistency factor
-      const methodConsistencyFactor = trait1.assessmentMethod === trait2.assessmentMethod ? 0.2 : 0;
-      
-      // Assessment timing proximity factor
-      const timeDifference = Math.abs(trait1.assessmentDate.getTime() - trait2.assessmentDate.getTime());
-      const daysDifference = timeDifference / (1000 * 60 * 60 * 24);
-      const timingProximityFactor = Math.max(0, 0.1 - (daysDifference / 365)); // Higher for traits assessed close together
-      
-      // Pre-defined trait relationships based on research
-      const knownRelationships: Record<string, Record<string, number>> = {
-        'Leadership': { 'Communication': 0.7, 'Strategic Thinking': 0.6, 'Problem Solving': 0.5, 'Initiative': 0.5 },
-        'Analytical Thinking': { 'Problem Solving': 0.8, 'Systems Thinking': 0.7, 'Strategic Thinking': 0.6 },
-        'Communication': { 'Collaboration': 0.7, 'Leadership': 0.6 },
-        'Initiative': { 'Adaptability': 0.5, 'Resilience': 0.4, 'Leadership': 0.5 },
-        'Resilience': { 'Adaptability': 0.6, 'Problem Solving': 0.5 },
-        'Creative Thinking': { 'Problem Solving': 0.6, 'Innovation': 0.8, 'Adaptability': 0.5 }
-      };
-      
-      // Apply known relationship factor if defined
-      let knownRelationshipFactor = 0;
-      if (knownRelationships[trait1.name]?.[trait2.name]) {
-        knownRelationshipFactor = knownRelationships[trait1.name][trait2.name];
-      } else if (knownRelationships[trait2.name]?.[trait1.name]) {
-        knownRelationshipFactor = knownRelationships[trait2.name][trait1.name];
-      }
-      
-      // Combine all factors with appropriate weights
-      const correlation = 
-        (scoreProximityFactor * 0.35) +
-        (categoryWeight * 0.25) +
-        (methodConsistencyFactor * 0.10) +
-        (timingProximityFactor * 0.05) +
-        (knownRelationshipFactor * 0.25);
-        
-      // Normalize to range [-1, 1] where negative values indicate inverse relationships
-      return correlation * 2 - 1;
-    } catch (error) {
-      logger.error('Error calculating trait correlation', { error, trait1: trait1.name, trait2: trait2.name });
-      return 0; // Default to no correlation on error
-    }
-  }
-
-  /**
-   * Analyze trait relationships for a profile's traits
-   * Returns detailed relationship information with correlation metrics
-   */
-  analyzeTraitRelationships(traits: Trait[]): {
-    relationships: TraitRelationship[];
-    clusters: any;
-  } {
-    try {
-      if (!traits || traits.length < 2) {
-        return { relationships: [], clusters: { categoryClusters: [], metaClusters: [] } };
-      }
-      
       const relationships: TraitRelationship[] = [];
       
-      // Calculate correlations between traits
+      // For each pair of traits, analyze their relationship
       for (let i = 0; i < traits.length; i++) {
         for (let j = i + 1; j < traits.length; j++) {
-          // Calculate correlation using enhanced method with multiple factors
-          const correlation = this.calculateTraitCorrelation(traits[i], traits[j]);
+          const trait1 = traits[i];
+          const trait2 = traits[j];
           
-          // Include correlations above significance threshold
-          if (Math.abs(correlation) > 0.2) { // Lowered threshold to capture more meaningful relationships
+          // Skip if traits are in different categories (optional, depends on requirements)
+          // if (trait1.category !== trait2.category) continue;
+          
+          // Calculate relationship strength based on trait data
+          const relationshipType = this.determineRelationshipType(trait1, trait2);
+          const strength = this.calculateRelationshipStrength(trait1, trait2, relationshipType);
+          
+          // Only include meaningful relationships
+          if (strength > TraitAnalyticsEngine.CORRELATION_THRESHOLD) {
             relationships.push({
-              trait1: {
-                name: traits[i].name,
-                category: traits[i].category
-              },
-              trait2: {
-                name: traits[j].name,
-                category: traits[j].category
-              },
-              correlation,
-              strength: this.determineCorrelationStrength(correlation),
-              direction: this.determineCorrelationDirection(correlation)
+              id: `rel_${trait1.id}_${trait2.id}`,
+              profileId: trait1.profileId,
+              traitId1: trait1.id,
+              traitId2: trait2.id,
+              trait1, // Linked trait object for convenience
+              trait2, // Linked trait object for convenience
+              type: relationshipType,
+              strength,
+              description: this.generateRelationshipDescription(trait1, trait2, relationshipType, strength),
+              createdAt: new Date(),
+              updatedAt: new Date()
             });
           }
         }
       }
       
-      // Cluster traits
-      const clusters = this.clusterTraits(traits);
-      
-      return {
-        relationships,
-        clusters
-      };
+      return relationships;
     } catch (error) {
       logger.error('Error analyzing trait relationships', { error });
-      return { relationships: [], clusters: { categoryClusters: [], metaClusters: [] } };
+      return [];
     }
   }
 
   /**
-   * Determine the strength of a correlation
+   * Identify trait clusters based on relationships and similarity
+   * 
+   * @param traits - Array of traits
+   * @param relationships - Array of trait relationships
+   * @returns Array of trait clusters
    */
-  private determineCorrelationStrength(correlation: number): 'strong' | 'moderate' | 'weak' {
-    const absCorr = Math.abs(correlation);
-    if (absCorr >= 0.7) return 'strong';
-    if (absCorr >= 0.4) return 'moderate';
-    return 'weak';
-  }
-
-  /**
-   * Determine the direction of a correlation
-   */
-  private determineCorrelationDirection(correlation: number): 'positive' | 'negative' | 'neutral' {
-    if (correlation > 0.1) return 'positive';
-    if (correlation < -0.1) return 'negative';
-    return 'neutral';
-  }
-
-  /**
-   * Cluster traits using hierarchical clustering algorithm
-   * Implements a more sophisticated clustering approach that:
-   * - Groups traits by statistical similarity rather than just category
-   * - Identifies subclusters within categories
-   * - Provides richer metadata about clusters
-   */
-  clusterTraits(traits: Trait[]): {
-    categoryClusters: TraitCluster[];
-    metaClusters: MetaCluster[];
-  } {
+  public identifyTraitClusters(traits: Trait[], relationships: TraitRelationship[]): TraitCluster[] {
     try {
-      if (traits.length === 0) return { categoryClusters: [], metaClusters: [] };
+      // Implementation of clustering algorithm
+      // This is a simplified approach - production code might use more sophisticated algorithms
       
-      // First, create category-based clusters
-      const categories = [...new Set(traits.map(t => t.category))];
+      const visitedTraits = new Set<string>();
+      const clusters: TraitCluster[] = [];
       
-      const categoryClusters: TraitCluster[] = categories.map(category => {
-        const categoryTraits = traits.filter(t => t.category === category);
-        const avgScore = categoryTraits.reduce((sum, t) => sum + t.score, 0) / categoryTraits.length;
+      // Find clusters based on relationship network
+      for (const trait of traits) {
+        if (visitedTraits.has(trait.id)) continue;
         
-        // Find subclusters within categories based on score similarity
-        const subclusters = this.identifySubclusters(categoryTraits);
+        const clusterTraits = this.findConnectedTraits(trait, traits, relationships);
+        const clusterTraitIds = clusterTraits.map(t => t.id);
         
-        // Identify traits that have strong connections to other categories
-        const crossCategoryTraits = categoryTraits.filter(trait => {
-          const otherCategories = categories.filter(c => c !== category);
-          for (const otherCategory of otherCategories) {
-            const otherTraits = traits.filter(t => t.category === otherCategory);
-            for (const otherTrait of otherTraits) {
-              const correlation = this.calculateTraitCorrelation(trait, otherTrait);
-              if (correlation > 0.6) return true; // Strong cross-category connection
-            }
-          }
-          return false;
-        });
+        // Mark all these traits as visited
+        clusterTraits.forEach(t => visitedTraits.add(t.id));
         
-        return {
-          category,
-          traits: categoryTraits.map(t => t.name),
-          traitObjects: categoryTraits.map(t => ({
-            name: t.name,
-            score: t.score,
-            assessmentMethod: t.assessmentMethod
-          })),
-          averageScore: avgScore,
-          topTrait: categoryTraits.sort((a, b) => b.score - a.score)[0].name,
-          bottomTrait: categoryTraits.sort((a, b) => a.score - b.score)[0].name,
-          scoreRange: {
-            min: Math.min(...categoryTraits.map(t => t.score)),
-            max: Math.max(...categoryTraits.map(t => t.score))
-          },
-          subclusters,
-          crossCategoryConnections: crossCategoryTraits.map(t => t.name),
-          traitCount: categoryTraits.length
-        };
-      });
-      
-      // Identify meta-clusters that span categories
-      const metaClusters = this.identifyMetaClusters(traits);
-      
-      return {
-        categoryClusters,
-        metaClusters
-      };
-    } catch (error) {
-      logger.error('Error clustering traits', { error });
-      return { categoryClusters: [], metaClusters: [] };
-    }
-  }
-  
-  /**
-   * Identify subclusters within a category based on trait similarities
-   */
-  private identifySubclusters(traits: Trait[]): Array<{
-    traits: string[];
-    coherence: number;
-  }> {
-    try {
-      if (traits.length < 3) return []; // Need at least 3 traits to form meaningful subclusters
-      
-      // Calculate similarity matrix
-      const similarityMatrix: number[][] = [];
-      for (let i = 0; i < traits.length; i++) {
-        similarityMatrix[i] = [];
-        for (let j = 0; j < traits.length; j++) {
-          if (i === j) {
-            similarityMatrix[i][j] = 1; // Same trait
-          } else {
-            similarityMatrix[i][j] = this.calculateTraitCorrelation(traits[i], traits[j]);
-          }
-        }
-      }
-      
-      // Simple agglomerative clustering
-      const clusters: { traits: string[], coherence: number }[] = [];
-      const clusterThreshold = 0.5; // Minimum similarity to form a cluster
-      
-      // Start with each trait in its own cluster
-      const assigned = new Set<number>();
-      
-      for (let i = 0; i < traits.length; i++) {
-        if (assigned.has(i)) continue;
-        
-        const cluster = [i];
-        assigned.add(i);
-        
-        // Find similar traits
-        for (let j = 0; j < traits.length; j++) {
-          if (i !== j && !assigned.has(j) && similarityMatrix[i][j] >= clusterThreshold) {
-            cluster.push(j);
-            assigned.add(j);
-          }
-        }
-        
-        if (cluster.length > 1) { // Only consider as subcluster if it has at least 2 traits
-          // Calculate cluster coherence (average similarity within cluster)
-          let totalSimilarity = 0;
-          let pairCount = 0;
-          
-          for (let a = 0; a < cluster.length; a++) {
-            for (let b = a + 1; b < cluster.length; b++) {
-              totalSimilarity += similarityMatrix[cluster[a]][cluster[b]];
-              pairCount++;
-            }
-          }
-          
-          const coherence = pairCount > 0 ? totalSimilarity / pairCount : 0;
+        // Only create clusters with at least 2 traits
+        if (clusterTraits.length >= 2) {
+          const category = this.identifyDominantCategory(clusterTraits);
           
           clusters.push({
-            traits: cluster.map(idx => traits[idx].name),
-            coherence
+            id: `cluster_${cluster.length + 1}`,
+            name: this.generateClusterName(clusterTraits, category),
+            category, // Dominant category
+            description: this.generateClusterDescription(clusterTraits, category),
+            traits: clusterTraits.map(t => ({
+              id: t.id,
+              name: t.name, // Include name for convenience
+              weight: this.calculateTraitWeightInCluster(t, clusterTraits, relationships)
+            })),
+            centrality: this.calculateClusterCentrality(clusterTraits, relationships),
+            metadata: {
+              averageScore: this.calculateAverageScore(clusterTraits),
+              cohesion: this.calculateClusterCohesion(clusterTraits, relationships)
+            }
           });
         }
       }
       
       return clusters;
     } catch (error) {
-      logger.error('Error identifying subclusters', { error });
+      logger.error('Error identifying trait clusters', { error });
       return [];
     }
   }
-  
+
   /**
-   * Identify meta-clusters that span categories
+   * Group related clusters into meta-clusters
+   * 
+   * @param clusters Array of trait clusters
+   * @param traits Array of all traits
+   * @returns Array of meta-clusters
    */
-  private identifyMetaClusters(traits: Trait[]): MetaCluster[] {
+  public identifyMetaClusters(clusters: TraitCluster[], traits: Trait[]): MetaCluster[] {
     try {
-      if (traits.length < 5) return []; // Need enough traits for meaningful meta-clusters
+      // Implementation of meta-clustering algorithm
+      // Simplified approach for demonstration
       
-      // Define known meta-clusters based on research
-      const metaClusterDefinitions = [
-        {
-          name: 'Leadership Competency',
-          keyTraits: ['Leadership', 'Strategic Thinking', 'Communication', 'Initiative'],
-          requiredMinimum: 2 // Need at least this many key traits to form cluster
-        },
-        {
-          name: 'Innovation Profile',
-          keyTraits: ['Creative Thinking', 'Problem Solving', 'Adaptability', 'Systems Thinking'],
-          requiredMinimum: 2
-        },
-        {
-          name: 'Resilience Indicators',
-          keyTraits: ['Resilience', 'Adaptability', 'Problem Solving', 'Efficiency'],
-          requiredMinimum: 2
-        },
-        {
-          name: 'Strategic Execution',
-          keyTraits: ['Strategic Thinking', 'Efficiency', 'Initiative', 'Analytical Thinking'],
-          requiredMinimum: 2
-        },
-        {
-          name: 'Team Effectiveness',
-          keyTraits: ['Communication', 'Collaboration', 'Leadership', 'Adaptability'],
-          requiredMinimum: 2
+      const metaClusters: MetaCluster[] = [];
+      const clusterCategories = new Map<string, TraitCluster[]>();
+      
+      // Group clusters by category
+      for (const cluster of clusters) {
+        const category = cluster.category;
+        if (!clusterCategories.has(category)) {
+          clusterCategories.set(category, []);
         }
-      ];
+        clusterCategories.get(category)!.push(cluster);
+      }
       
-      // Find which meta-clusters are present based on trait names
-      const traitNames = traits.map(t => t.name);
-      
-      return metaClusterDefinitions
-        .map(definition => {
-          const presentKeyTraits = definition.keyTraits.filter(trait => 
-            traitNames.includes(trait)
-          );
-          
-          if (presentKeyTraits.length >= definition.requiredMinimum) {
-            // Calculate average score of traits in this meta-cluster
-            const clusterTraits = traits.filter(t => presentKeyTraits.includes(t.name));
-            const avgScore = clusterTraits.reduce((sum, t) => sum + t.score, 0) / clusterTraits.length;
-            
-            return {
-              name: definition.name,
-              traits: presentKeyTraits,
-              averageScore: avgScore,
-              completeness: presentKeyTraits.length / definition.keyTraits.length
-            };
+      // Create meta-clusters from category groups
+      Array.from(clusterCategories.entries()).forEach(([category, categoryClusters]) => {
+        const relevantTraits = this.identifyKeyTraitsForMetaCluster(categoryClusters, traits);
+        
+        metaClusters.push({
+          id: `meta_${metaClusters.length + 1}`,
+          name: this.generateMetaClusterName(category, categoryClusters),
+          description: this.generateMetaClusterDescription(category, categoryClusters),
+          clusters: categoryClusters.map(c => c.id),
+          traits: relevantTraits.map(t => ({
+            id: t.id,
+            relevance: this.calculateTraitRelevanceInMetaCluster(t, categoryClusters)
+          })),
+          metadata: {
+            strength: this.calculateMetaClusterStrength(categoryClusters),
+            significance: this.calculateMetaClusterSignificance(categoryClusters, traits)
           }
-          return null;
-        })
-        .filter((cluster): cluster is MetaCluster => cluster !== null);
+        });
+      });
+      
+      return metaClusters;
     } catch (error) {
       logger.error('Error identifying meta-clusters', { error });
       return [];
     }
+  }
+
+  /**
+   * Analyze comparative trait data against benchmarks or other profiles
+   * 
+   * @param traits Array of traits to analyze
+   * @param benchmarkTraits Array of benchmark traits for comparison
+   * @returns Comparative analysis results
+   */
+  public analyzeComparativeTraitData(
+    traits: Trait[], 
+    benchmarkTraits: { name: string; score: number; importance: number; }[]
+  ): Array<{
+    traitName: string;
+    userScore: number;
+    benchmarkScore: number;
+    gap: number;
+    significance: number;
+  }> {
+    try {
+      const results = [];
+      
+      // Create maps for efficient lookup
+      const traitMap = new Map<string, Trait>();
+      traits.forEach(t => traitMap.set(t.name.toLowerCase(), t));
+      
+      const benchmarkMap = new Map<string, { score: number; importance: number; }>();
+      benchmarkTraits.forEach(b => benchmarkMap.set(b.name.toLowerCase(), b));
+      
+      // Analyze each trait that exists in both sets
+      for (const [name, trait] of traitMap.entries()) {
+        const benchmark = benchmarkMap.get(name);
+        if (benchmark) {
+          const gap = trait.score - benchmark.score;
+          
+          results.push({
+            traitName: trait.name,
+            userScore: trait.score,
+            benchmarkScore: benchmark.score,
+            gap,
+            significance: benchmark.importance
+          });
+        }
+      }
+      
+      // Sort by significance (most significant first)
+      return results.sort((a, b) => b.significance - a.significance);
+    } catch (error) {
+      logger.error('Error analyzing comparative trait data', { error });
+      return [];
+    }
+  }
+
+  /**
+   * Find traits that need attention based on analysis
+   * 
+   * @param traits Array of traits
+   * @param relationships Array of trait relationships
+   * @returns Array of traits needing attention with reasons
+   */
+  public identifyTraitsNeedingAttention(
+    traits: Trait[],
+    relationships: TraitRelationship[]
+  ): Array<{
+    trait: Trait;
+    reason: string;
+    priority: number;
+  }> {
+    try {
+      const results = [];
+      
+      // Find low-scoring traits with high confidence
+      for (const trait of traits) {
+        if (trait.score < 50 && trait.confidence > 70) {
+          results.push({
+            trait,
+            reason: `Low score (${trait.score}) with high assessment confidence`,
+            priority: this.calculateAttentionPriority(trait, relationships)
+          });
+        }
+      }
+      
+      // Find traits with conflicting relationships
+      for (const relationship of relationships) {
+        if (relationship.type === 'conflicting' && relationship.strength > 0.8) {
+          const trait1 = traits.find(t => t.id === relationship.traitId1);
+          const trait2 = traits.find(t => t.id === relationship.traitId2);
+          
+          if (trait1 && trait2) {
+            // Lower scoring trait needs more attention
+            const lowerScoringTrait = trait1.score < trait2.score ? trait1 : trait2;
+            
+            results.push({
+              trait: lowerScoringTrait,
+              reason: `Strong conflict with ${
+                lowerScoringTrait.id === trait1.id ? trait2.name : trait1.name
+              }`,
+              priority: this.calculateAttentionPriority(lowerScoringTrait, relationships)
+            });
+          }
+        }
+      }
+      
+      // Sort by priority (highest first)
+      return results.sort((a, b) => b.priority - a.priority);
+    } catch (error) {
+      logger.error('Error identifying traits needing attention', { error });
+      return [];
+    }
+  }
+
+  // Helper methods
+
+  private determineRelationshipType(
+    trait1: Trait, 
+    trait2: Trait
+  ): 'complementary' | 'reinforcing' | 'conflicting' {
+    // Simplified logic - in a real system this would be more sophisticated
+    // using data science techniques, domain knowledge, or pre-defined matrices
+    
+    // Traits in same category tend to be reinforcing
+    if (trait1.category === trait2.category) {
+      return 'reinforcing';
+    }
+    
+    // Some pre-defined complementary pairs (simplified example)
+    const complementaryPairs = [
+      ['analytical', 'creative'],
+      ['leadership', 'empathy'],
+      ['technical', 'communication'],
+      ['detail', 'big picture'],
+      ['execution', 'planning']
+    ];
+    
+    for (const [trait1Name, trait2Name] of complementaryPairs) {
+      if (
+        (trait1.name.toLowerCase().includes(trait1Name) && 
+         trait2.name.toLowerCase().includes(trait2Name)) ||
+        (trait1.name.toLowerCase().includes(trait2Name) && 
+         trait2.name.toLowerCase().includes(trait1Name))
+      ) {
+        return 'complementary';
+      }
+    }
+    
+    // Some pre-defined conflicting pairs (simplified example)
+    const conflictingPairs = [
+      ['risk-taking', 'caution'],
+      ['independent', 'collaborative'],
+      ['specialized', 'generalist'],
+      ['analytical', 'intuitive']
+    ];
+    
+    for (const [trait1Name, trait2Name] of conflictingPairs) {
+      if (
+        (trait1.name.toLowerCase().includes(trait1Name) && 
+         trait2.name.toLowerCase().includes(trait2Name)) ||
+        (trait1.name.toLowerCase().includes(trait2Name) && 
+         trait2.name.toLowerCase().includes(trait1Name))
+      ) {
+        return 'conflicting';
+      }
+    }
+    
+    // Default to complementary if nothing else matches
+    return 'complementary';
+  }
+
+  private calculateRelationshipStrength(
+    trait1: Trait,
+    trait2: Trait,
+    relationshipType: 'complementary' | 'reinforcing' | 'conflicting'
+  ): number {
+    // Base strength influenced by scores
+    let strength = 0.5;
+    
+    // Higher scores on both traits strengthen the relationship
+    if (trait1.score > 70 && trait2.score > 70) {
+      strength += 0.2;
+    }
+    
+    // Same category traits have stronger relationships
+    if (trait1.category === trait2.category) {
+      strength += 0.15;
+    }
+    
+    // Higher confidence in assessments increases strength
+    if (trait1.confidence > 80 && trait2.confidence > 80) {
+      strength += 0.1;
+    }
+    
+    // Normalize to range [0, 1]
+    return Math.min(1, Math.max(0, strength));
+  }
+
+  private generateRelationshipDescription(
+    trait1: Trait,
+    trait2: Trait,
+    type: 'complementary' | 'reinforcing' | 'conflicting',
+    strength: number
+  ): string {
+    switch (type) {
+      case 'complementary':
+        return `${trait1.name} and ${trait2.name} complement each other, creating a balanced skill set.`;
+      case 'reinforcing':
+        return `${trait1.name} and ${trait2.name} reinforce each other, creating a compounding effect.`;
+      case 'conflicting':
+        return `${trait1.name} and ${trait2.name} may create tension when applied simultaneously.`;
+      default:
+        return `${trait1.name} and ${trait2.name} have a relationship with strength ${Math.round(strength * 100)}%.`;
+    }
+  }
+
+  private findConnectedTraits(
+    startTrait: Trait,
+    allTraits: Trait[],
+    relationships: TraitRelationship[]
+  ): Trait[] {
+    const visited = new Set<string>();
+    const connected: Trait[] = [startTrait];
+    visited.add(startTrait.id);
+    
+    const queue = [startTrait.id];
+    
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      
+      // Find relationships involving this trait
+      for (const rel of relationships) {
+        let otherTraitId: string | null = null;
+        
+        if (rel.traitId1 === currentId) {
+          otherTraitId = rel.traitId2;
+        } else if (rel.traitId2 === currentId) {
+          otherTraitId = rel.traitId1;
+        }
+        
+        if (otherTraitId && !visited.has(otherTraitId) && 
+            rel.type !== 'conflicting' && rel.strength >= TraitAnalyticsEngine.CORRELATION_THRESHOLD) {
+          visited.add(otherTraitId);
+          const otherTrait = allTraits.find(t => t.id === otherTraitId);
+          if (otherTrait) {
+            connected.push(otherTrait);
+            queue.push(otherTraitId);
+          }
+        }
+      }
+    }
+    
+    return connected;
+  }
+
+  private identifyDominantCategory(traits: Trait[]): string {
+    const categoryCount = new Map<string, number>();
+    
+    for (const trait of traits) {
+      const count = categoryCount.get(trait.category) || 0;
+      categoryCount.set(trait.category, count + 1);
+    }
+    
+    let dominantCategory = '';
+    let maxCount = 0;
+    
+    for (const [category, count] of categoryCount.entries()) {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantCategory = category;
+      }
+    }
+    
+    return dominantCategory;
+  }
+
+  private generateClusterName(traits: Trait[], category: string): string {
+    // Find highest scoring traits
+    const topTraits = [...traits]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2);
+      
+    // Use top trait names to form cluster name
+    if (topTraits.length >= 2) {
+      return `${topTraits[0].name}-${topTraits[1].name} ${category} Cluster`;
+    } else if (topTraits.length === 1) {
+      return `${topTraits[0].name} ${category} Cluster`;
+    } else {
+      return `${category} Trait Cluster`;
+    }
+  }
+
+  private generateClusterDescription(traits: Trait[], category: string): string {
+    const traitNames = traits.map(t => t.name).join(', ');
+    return `A cluster of related ${category.toLowerCase()} traits including ${traitNames}.`;
+  }
+
+  private calculateTraitWeightInCluster(
+    trait: Trait,
+    clusterTraits: Trait[],
+    relationships: TraitRelationship[]
+  ): number {
+    // Base weight on trait score
+    let weight = trait.score / 100 * 0.4;
+    
+    // Add weight based on relationships
+    const relatedTraits = relationships
+      .filter(r => (r.traitId1 === trait.id || r.traitId2 === trait.id) && 
+                   (clusterTraits.some(ct => ct.id === r.traitId1) && 
+                    clusterTraits.some(ct => ct.id === r.traitId2)));
+                    
+    const relationshipWeight = relatedTraits.reduce((sum, r) => sum + r.strength, 0) / 
+                              Math.max(1, relatedTraits.length) * 0.6;
+                              
+    weight += relationshipWeight;
+    
+    // Normalize to range [0, 100]
+    return Math.min(100, Math.max(0, weight * 100));
+  }
+
+  private calculateClusterCentrality(
+    traits: Trait[],
+    relationships: TraitRelationship[]
+  ): number {
+    // Calculate the average relationship strength within the cluster
+    let totalStrength = 0;
+    let relationshipCount = 0;
+    
+    for (const rel of relationships) {
+      if (traits.some(t => t.id === rel.traitId1) && traits.some(t => t.id === rel.traitId2)) {
+        totalStrength += rel.strength;
+        relationshipCount++;
+      }
+    }
+    
+    // Normalize to range [0, 100]
+    return relationshipCount > 0 ? 
+           Math.round((totalStrength / relationshipCount) * 100) : 0;
+  }
+
+  private calculateAverageScore(traits: Trait[]): number {
+    const sum = traits.reduce((total, trait) => total + trait.score, 0);
+    return Math.round(sum / traits.length);
+  }
+
+  private calculateClusterCohesion(
+    traits: Trait[],
+    relationships: TraitRelationship[]
+  ): number {
+    // Calculate cohesion based on relationship density and strength
+    const maxPossibleRelationships = (traits.length * (traits.length - 1)) / 2;
+    
+    let actualRelationships = 0;
+    let totalStrength = 0;
+    
+    for (const rel of relationships) {
+      if (traits.some(t => t.id === rel.traitId1) && traits.some(t => t.id === rel.traitId2)) {
+        actualRelationships++;
+        totalStrength += rel.strength;
+      }
+    }
+    
+    const density = maxPossibleRelationships > 0 ? 
+                   actualRelationships / maxPossibleRelationships : 0;
+                   
+    const avgStrength = actualRelationships > 0 ? 
+                       totalStrength / actualRelationships : 0;
+                       
+    // Cohesion combines density and average strength
+    return Math.round((density * 0.4 + avgStrength * 0.6) * 100);
+  }
+
+  private generateMetaClusterName(
+    category: string,
+    clusters: TraitCluster[]
+  ): string {
+    return `${category} Meta-Cluster`;
+  }
+
+  private generateMetaClusterDescription(
+    category: string,
+    clusters: TraitCluster[]
+  ): string {
+    const clusterNames = clusters.map(c => c.name).join(', ');
+    return `A meta-cluster of ${category.toLowerCase()} traits including clusters: ${clusterNames}.`;
+  }
+
+  private identifyKeyTraitsForMetaCluster(
+    clusters: TraitCluster[],
+    allTraits: Trait[]
+  ): Trait[] {
+    const traitIds = new Set<string>();
+    
+    // Collect all trait IDs from clusters
+    for (const cluster of clusters) {
+      for (const traitInfo of cluster.traits) {
+        traitIds.add(traitInfo.id);
+      }
+    }
+    
+    // Find traits with IDs in the set
+    return allTraits.filter(t => traitIds.has(t.id));
+  }
+
+  private calculateTraitRelevanceInMetaCluster(
+    trait: Trait,
+    clusters: TraitCluster[]
+  ): number {
+    let relevance = 0;
+    let count = 0;
+    
+    // Calculate relevance based on weight in each cluster
+    for (const cluster of clusters) {
+      const traitInCluster = cluster.traits.find(t => t.id === trait.id);
+      
+      if (traitInCluster) {
+        relevance += traitInCluster.weight;
+        count++;
+      }
+    }
+    
+    // Average across clusters where the trait appears
+    return count > 0 ? Math.round(relevance / count) : 0;
+  }
+
+  private calculateMetaClusterStrength(clusters: TraitCluster[]): number {
+    // Average of cluster centrality scores
+    const sum = clusters.reduce((total, cluster) => total + cluster.centrality, 0);
+    return Math.round(sum / clusters.length);
+  }
+
+  private calculateMetaClusterSignificance(
+    clusters: TraitCluster[],
+    allTraits: Trait[]
+  ): number {
+    // Significance based on proportion of total traits and average scores
+    const uniqueTraitIds = new Set<string>();
+    
+    for (const cluster of clusters) {
+      for (const traitInfo of cluster.traits) {
+        uniqueTraitIds.add(traitInfo.id);
+      }
+    }
+    
+    const coverageRatio = uniqueTraitIds.size / allTraits.length;
+    
+    const significantTraits = allTraits
+      .filter(t => uniqueTraitIds.has(t.id) && t.score >= TraitAnalyticsEngine.SIGNIFICANT_TRAIT_THRESHOLD)
+      .length;
+    
+    const significanceRatio = allTraits.length > 0 ? 
+                             significantTraits / allTraits.length : 0;
+    
+    // Combine coverage and significance
+    return Math.round((coverageRatio * 0.4 + significanceRatio * 0.6) * 100);
+  }
+
+  private calculateAttentionPriority(
+    trait: Trait,
+    relationships: TraitRelationship[]
+  ): number {
+    // Base priority on inverse of trait score (lower score = higher priority)
+    let priority = (100 - trait.score) / 100 * 5;
+    
+    // Increase priority for traits with many relationships (more connected = more important)
+    const relatedTraits = relationships.filter(r => r.traitId1 === trait.id || r.traitId2 === trait.id);
+    priority += Math.min(3, relatedTraits.length * 0.5);
+    
+    // Increase priority for high confidence assessments
+    priority += trait.confidence / 100 * 2;
+    
+    // Scale to 0-10 range
+    return Math.min(10, Math.max(0, priority));
   }
 }

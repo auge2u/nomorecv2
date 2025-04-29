@@ -1,432 +1,892 @@
-import logger from '../../logger';
-import { AppError } from '../../error.middleware';
-import { TraitEvolution } from '../models/trait.model';
-
-// Define a simpler version of TraitDataPoint with Date type only to avoid TypeScript issues
-interface TraitDataPoint {
-  date: Date;
-  score: number;
-  assessmentMethod: string;
-}
+import logger from '../../utils/logger';
+import { Trait, TraitMilestone } from '../models/trait.model';
 import { TraitDataRepository } from './trait-data.repository';
 
 /**
- * Service for tracking and analyzing trait evolution over time
- * Implements sophisticated tracking of trait growth patterns and indicators
+ * TraitEvolutionTracker
+ * Tracks and analyzes the evolution of traits over time
  */
 export class TraitEvolutionTracker {
-  private repository: TraitDataRepository;
-
-  constructor(repository: TraitDataRepository) {
-    this.repository = repository;
-  }
+  constructor(
+    private dataRepository: TraitDataRepository
+  ) {}
 
   /**
-   * Analyze evolution of a specific trait over time
-   * Uses advanced statistical methods to identify growth patterns
+   * Track trait evolution for a profile
+   * Analyzes how traits have evolved over specified time period
    */
-  async analyzeTraitEvolution(profileId: string, traitName: string): Promise<TraitEvolution | null> {
+  async trackTraitEvolution(
+    profileId: string,
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      traitNames?: string[];
+      categories?: string[];
+    }
+  ): Promise<{
+    traits: Array<{
+      name: string;
+      category: string;
+      history: Array<{
+        date: Date;
+        score: number;
+        assessmentMethod: string;
+      }>;
+      analysis: {
+        startScore: number;
+        currentScore: number;
+        growth: number;
+        growthPercentage: number;
+        trend: 'improving' | 'declining' | 'stable';
+        growthRate: number;
+        volatility: number;
+      };
+    }>;
+    overallGrowth: number;
+    fastestGrowingTrait?: {
+      name: string;
+      growth: number;
+    };
+    mostDeclinedTrait?: {
+      name: string;
+      decline: number;
+    };
+  }> {
     try {
-      const historyData = await this.repository.getTraitHistory(profileId, traitName);
+      logger.info('Tracking trait evolution', { profileId, options });
       
-      if (!historyData || historyData.length === 0) {
-        logger.info('No history data for trait evolution analysis', { profileId, traitName });
-        return null;
+      // Default dates
+      const endDate = options?.endDate || new Date();
+      const startDate = options?.startDate || new Date(endDate.getTime() - (180 * 24 * 60 * 60 * 1000)); // 180 days by default
+      
+      // Get trait history from the repository
+      const traitHistory = await this.dataRepository.getTraitHistory(
+        profileId,
+        undefined, // All traits
+        startDate,
+        endDate
+      );
+      
+      if (!traitHistory || traitHistory.length === 0) {
+        logger.warn('No trait history found for profile', { profileId });
+        return {
+          traits: [],
+          overallGrowth: 0
+        };
       }
-
-      // Get the trait category from the most recent assessment
-      const latestEntry = historyData.sort((a, b) => 
-        new Date(b.assessment_date).getTime() - new Date(a.assessment_date).getTime()
-      )[0];
       
-      const category = latestEntry.category;
+      // Group traits by name
+      const traitsByName: Record<string, Trait[]> = {};
       
-      // Transform the data into TraitDataPoint format (using our local interface with Date type only)
-      const dataPoints: TraitDataPoint[] = historyData.map(history => ({
-        date: new Date(history.assessment_date),
-        score: history.score,
-        assessmentMethod: history.assessment_method
-      }));
+      traitHistory.forEach(trait => {
+        // Skip if we're filtering by trait names and this isn't in the list
+        if (options?.traitNames && !options.traitNames.includes(trait.name)) {
+          return;
+        }
+        
+        // Skip if we're filtering by categories and this isn't in the list
+        if (options?.categories && !options.categories.includes(trait.category)) {
+          return;
+        }
+        
+        const key = trait.name.toLowerCase();
+        
+        if (!traitsByName[key]) {
+          traitsByName[key] = [];
+        }
+        
+        traitsByName[key].push(trait);
+      });
       
-      // Sort data points by date (oldest first)
-      dataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
+      // Analyze each trait's evolution
+      const traitEvolutions: Array<{
+        name: string;
+        category: string;
+        history: Array<{
+          date: Date;
+          score: number;
+          assessmentMethod: string;
+        }>;
+        analysis: {
+          startScore: number;
+          currentScore: number;
+          growth: number;
+          growthPercentage: number;
+          trend: 'improving' | 'declining' | 'stable';
+          growthRate: number;
+          volatility: number;
+        };
+      }> = [];
       
-      // Calculate growth rate and other metrics
-      const growthMetrics = this.calculateGrowthMetrics(dataPoints);
-      const trend = this.analyzeTrend(dataPoints, growthMetrics);
+      let totalGrowth = 0;
+      let fastestGrowingTrait: {name: string; growth: number} | undefined;
+      let mostDeclinedTrait: {name: string; decline: number} | undefined;
+      
+      Object.entries(traitsByName).forEach(([name, traits]) => {
+        if (traits.length < 2) {
+          // Skip traits with insufficient history
+          return;
+        }
+        
+        // Sort traits by assessment date
+        const sortedTraits = [...traits].sort((a, b) => 
+          a.assessmentDate.getTime() - b.assessmentDate.getTime()
+        );
+        
+        // Create history array
+        const history = sortedTraits.map(t => ({
+          date: t.assessmentDate,
+          score: t.score,
+          assessmentMethod: t.assessmentMethod
+        }));
+        
+        // Calculate metrics
+        const startScore = sortedTraits[0].score;
+        const currentScore = sortedTraits[sortedTraits.length - 1].score;
+        const growth = currentScore - startScore;
+        const growthPercentage = startScore > 0 ? (growth / startScore) * 100 : 0;
+        
+        // Determine trend
+        let trend: 'improving' | 'declining' | 'stable';
+        if (growth > 5) {
+          trend = 'improving';
+        } else if (growth < -5) {
+          trend = 'declining';
+        } else {
+          trend = 'stable';
+        }
+        
+        // Calculate growth rate (points per month)
+        const timeSpanMs = sortedTraits[sortedTraits.length - 1].assessmentDate.getTime() - 
+                          sortedTraits[0].assessmentDate.getTime();
+        const monthsElapsed = timeSpanMs / (30 * 24 * 60 * 60 * 1000);
+        const growthRate = monthsElapsed > 0 ? growth / monthsElapsed : 0;
+        
+        // Calculate volatility (standard deviation of score changes)
+        let volatility = 0;
+        if (sortedTraits.length > 2) {
+          const changes: number[] = [];
+          
+          for (let i = 1; i < sortedTraits.length; i++) {
+            changes.push(sortedTraits[i].score - sortedTraits[i-1].score);
+          }
+          
+          const meanChange = changes.reduce((sum, change) => sum + change, 0) / changes.length;
+          const squaredDiffs = changes.map(change => Math.pow(change - meanChange, 2));
+          volatility = Math.sqrt(squaredDiffs.reduce((sum, diff) => sum + diff, 0) / changes.length);
+        }
+        
+        // Add to result
+        traitEvolutions.push({
+          name: traits[0].name, // Use proper case from trait
+          category: traits[0].category,
+          history,
+          analysis: {
+            startScore,
+            currentScore,
+            growth,
+            growthPercentage,
+            trend,
+            growthRate,
+            volatility
+          }
+        });
+        
+        // Track fastest growing/most declined
+        if (growth > 0 && (!fastestGrowingTrait || growth > fastestGrowingTrait.growth)) {
+          fastestGrowingTrait = {
+            name: traits[0].name,
+            growth
+          };
+        } else if (growth < 0 && (!mostDeclinedTrait || growth < -mostDeclinedTrait.decline)) {
+          mostDeclinedTrait = {
+            name: traits[0].name,
+            decline: -growth
+          };
+        }
+        
+        // Add to total growth
+        totalGrowth += growth;
+      });
       
       return {
-        name: traitName,
-        category,
-        dataPoints,
-        growthRate: growthMetrics,
-        trend
+        traits: traitEvolutions,
+        overallGrowth: totalGrowth,
+        fastestGrowingTrait,
+        mostDeclinedTrait
       };
     } catch (error) {
-      logger.error('Error analyzing trait evolution', { error, profileId, traitName });
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError(`Failed to analyze trait evolution: ${(error as Error).message}`, 500);
+      logger.error('Error tracking trait evolution', { error, profileId });
+      throw new Error(`Failed to track trait evolution: ${error.message}`);
     }
   }
 
   /**
-   * Get evolution data for all traits of a profile
+   * Analyze trait growth periods
+   * Identifies and analyzes significant growth periods for a trait
    */
-  async getTraitEvolutionData(profileId: string): Promise<TraitEvolution[]> {
+  async analyzeGrowthPeriods(
+    profileId: string,
+    traitName: string,
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      significanceThreshold?: number; // Min growth to be considered significant
+    }
+  ): Promise<Array<{
+    startDate: Date;
+    endDate: Date;
+    startScore: number;
+    endScore: number;
+    growth: number;
+    growthRate: number;
+    duration: number; // days
+    sources: Array<{
+      assessmentMethod: string;
+      count: number;
+    }>;
+  }>> {
     try {
-      // Fetch all the profile's trait history
-      const allHistoryData = await this.repository.getTraitHistory(profileId);
+      logger.info('Analyzing growth periods', { profileId, traitName });
       
-      if (!allHistoryData || allHistoryData.length === 0) {
-        logger.info('No history data for trait evolution analysis', { profileId });
+      // Default dates and threshold
+      const endDate = options?.endDate || new Date();
+      const startDate = options?.startDate || new Date(endDate.getTime() - (365 * 24 * 60 * 60 * 1000)); // 1 year by default
+      const significanceThreshold = options?.significanceThreshold || 5; // 5 points by default
+      
+      // Get trait history
+      const traitHistory = await this.dataRepository.getTraitHistory(
+        profileId,
+        traitName,
+        startDate,
+        endDate
+      );
+      
+      if (!traitHistory || traitHistory.length < 2) {
+        logger.warn('Insufficient trait history to analyze growth periods', { profileId, traitName });
         return [];
       }
       
-      // Group history data by trait name
-      const traitGroups: Record<string, any[]> = {};
-      for (const historyItem of allHistoryData) {
-        const traitName = historyItem.name;
-        if (!traitGroups[traitName]) {
-          traitGroups[traitName] = [];
-        }
-        traitGroups[traitName].push(historyItem);
-      }
+      // Sort by date
+      const sortedHistory = [...traitHistory].sort((a, b) => 
+        a.assessmentDate.getTime() - b.assessmentDate.getTime()
+      );
       
-      // Analyze evolution for each trait
-      const evolutionData: TraitEvolution[] = [];
+      // Identify periods of continuous growth or decline
+      const growthPeriods: Array<{
+        traits: Trait[];
+        startDate: Date;
+        endDate: Date;
+        startScore: number;
+        endScore: number;
+        growth: number;
+        direction: 'growth' | 'decline';
+      }> = [];
       
-      for (const traitName of Object.keys(traitGroups)) {
-        // Check if we have at least 2 data points for this trait
-        if (traitGroups[traitName].length < 2) {
-          continue; // Skip traits with insufficient data for evolution analysis
+      let periodStart = 0;
+      let currentDirection: 'growth' | 'decline' | null = null;
+      
+      for (let i = 1; i < sortedHistory.length; i++) {
+        const prevScore = sortedHistory[i-1].score;
+        const currentScore = sortedHistory[i].score;
+        const scoreDiff = currentScore - prevScore;
+        
+        const newDirection = scoreDiff > 0 ? 'growth' : scoreDiff < 0 ? 'decline' : currentDirection;
+        
+        // Direction changed or period ended
+        if (newDirection !== currentDirection && currentDirection !== null) {
+          // Record completed period
+          const periodTraits = sortedHistory.slice(periodStart, i);
+          
+          // Skip single-point periods
+          if (periodTraits.length >= 2) {
+            const startTraitDate = periodTraits[0].assessmentDate;
+            const endTraitDate = periodTraits[periodTraits.length - 1].assessmentDate;
+            const startTraitScore = periodTraits[0].score;
+            const endTraitScore = periodTraits[periodTraits.length - 1].score;
+            const periodGrowth = endTraitScore - startTraitScore;
+            
+            growthPeriods.push({
+              traits: periodTraits,
+              startDate: startTraitDate,
+              endDate: endTraitDate,
+              startScore: startTraitScore, 
+              endScore: endTraitScore,
+              growth: periodGrowth,
+              direction: currentDirection
+            });
+          }
+          
+          // Start new period
+          periodStart = i - 1;
         }
         
-        const traitEvolution = await this.analyzeTraitEvolution(profileId, traitName);
-        if (traitEvolution) {
-          evolutionData.push(traitEvolution);
+        currentDirection = newDirection;
+      }
+      
+      // Handle final period
+      if (currentDirection !== null) {
+        const periodTraits = sortedHistory.slice(periodStart);
+        
+        // Skip single-point periods
+        if (periodTraits.length >= 2) {
+          const startTraitDate = periodTraits[0].assessmentDate;
+          const endTraitDate = periodTraits[periodTraits.length - 1].assessmentDate;
+          const startTraitScore = periodTraits[0].score;
+          const endTraitScore = periodTraits[periodTraits.length - 1].score;
+          const periodGrowth = endTraitScore - startTraitScore;
+          
+          growthPeriods.push({
+            traits: periodTraits,
+            startDate: startTraitDate,
+            endDate: endTraitDate,
+            startScore: startTraitScore,
+            endScore: endTraitScore,
+            growth: periodGrowth,
+            direction: currentDirection
+          });
         }
       }
       
-      return evolutionData;
+      // Filter and analyze significant growth periods
+      return growthPeriods
+        .filter(period => 
+          period.direction === 'growth' && Math.abs(period.growth) >= significanceThreshold
+        )
+        .map(period => {
+          // Calculate duration in days
+          const durationMs = period.endDate.getTime() - period.startDate.getTime();
+          const durationDays = Math.round(durationMs / (24 * 60 * 60 * 1000));
+          
+          // Calculate growth rate (points per month)
+          const monthsElapsed = durationMs / (30 * 24 * 60 * 60 * 1000);
+          const growthRate = monthsElapsed > 0 ? period.growth / monthsElapsed : period.growth;
+          
+          // Count assessment methods
+          const methodCounts: Record<string, number> = {};
+          
+          period.traits.forEach(trait => {
+            const method = trait.assessmentMethod;
+            methodCounts[method] = (methodCounts[method] || 0) + 1;
+          });
+          
+          const sources = Object.entries(methodCounts).map(([method, count]) => ({
+            assessmentMethod: method,
+            count
+          }));
+          
+          return {
+            startDate: period.startDate,
+            endDate: period.endDate,
+            startScore: period.startScore,
+            endScore: period.endScore,
+            growth: period.growth,
+            growthRate,
+            duration: durationDays,
+            sources
+          };
+        })
+        .sort((a, b) => b.growth - a.growth); // Sort by growth magnitude
     } catch (error) {
-      logger.error('Error getting trait evolution data', { error, profileId });
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError(`Failed to get trait evolution data: ${(error as Error).message}`, 500);
+      logger.error('Error analyzing growth periods', { error, profileId, traitName });
+      throw new Error(`Failed to analyze growth periods: ${error.message}`);
     }
   }
 
   /**
-   * Calculate growth metrics for a set of trait data points
-   * Implements advanced statistical analysis to identify patterns
+   * Identify development milestones
+   * Detects significant milestones in trait development
    */
-  private calculateGrowthMetrics(dataPoints: TraitDataPoint[]): {
-    monthlyGrowthRate: number;
-    rSquared: number;
-    velocityChanges: Array<{date: string, acceleration: number}>;
-    confidence: 'high' | 'medium' | 'low';
-    trend: 'linear' | 'exponential' | 'plateauing' | 'fluctuating';
-  } {
+  async identifyMilestones(
+    profileId: string,
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      traitNames?: string[];
+    }
+  ): Promise<Array<TraitMilestone>> {
     try {
-      if (dataPoints.length < 2) {
-        return {
-          monthlyGrowthRate: 0,
-          rSquared: 0,
-          velocityChanges: [],
-          confidence: 'low',
-          trend: 'linear'
-        };
+      logger.info('Identifying trait milestones', { profileId });
+      
+      // Default dates
+      const endDate = options?.endDate || new Date();
+      const startDate = options?.startDate || new Date(endDate.getTime() - (365 * 24 * 60 * 60 * 1000)); // 1 year by default
+      
+      // Get trait history
+      const traitHistory = await this.dataRepository.getTraitHistory(
+        profileId,
+        options?.traitNames?.length === 1 ? options.traitNames[0] : undefined,
+        startDate,
+        endDate
+      );
+      
+      if (!traitHistory || traitHistory.length === 0) {
+        logger.warn('No trait history to identify milestones from', { profileId });
+        return [];
       }
       
-      // Extract time points (in months since first assessment) and scores
-      const firstDate = dataPoints[0].date.getTime();
-      
-      const timePoints = dataPoints.map(p => {
-        return (p.date.getTime() - firstDate) / (1000 * 60 * 60 * 24 * 30); // Convert to months
-      });
-      
-      const scores = dataPoints.map(p => p.score);
-      
-      // Linear regression for growth rate
-      const n = timePoints.length;
-      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
-      
-      for (let i = 0; i < n; i++) {
-        sumX += timePoints[i];
-        sumY += scores[i];
-        sumXY += timePoints[i] * scores[i];
-        sumX2 += timePoints[i] * timePoints[i];
-        sumY2 += scores[i] * scores[i];
+      // Filter traits if specified
+      let filteredHistory = traitHistory;
+      if (options?.traitNames && options.traitNames.length > 0) {
+        filteredHistory = traitHistory.filter(trait => 
+          options.traitNames!.includes(trait.name)
+        );
       }
       
-      // Calculate slope (monthly growth rate)
-      const denominator = n * sumX2 - sumX * sumX;
-      let monthlyGrowthRate = 0;
+      // Group traits by name
+      const traitsByName: Record<string, Trait[]> = {};
       
-      if (denominator !== 0) {
-        monthlyGrowthRate = (n * sumXY - sumX * sumY) / denominator;
-      }
-      
-      // Calculate R-squared to measure how well the linear model fits the data
-      let rSquared = 0;
-      
-      const sMean = sumY / n;
-      let sTot = 0, sRes = 0;
-      
-      for (let i = 0; i < n; i++) {
-        // Predicted value
-        const yPred = (monthlyGrowthRate * timePoints[i]) + ((sumY - monthlyGrowthRate * sumX) / n);
-        // Sum of squared residuals
-        sRes += Math.pow(scores[i] - yPred, 2);
-        // Total sum of squares
-        sTot += Math.pow(scores[i] - sMean, 2);
-      }
-      
-      if (sTot !== 0) {
-        rSquared = 1 - (sRes / sTot);
-      }
-      
-      // Identify velocity changes (accelerations/decelerations)
-      const velocityChanges: Array<{date: string, acceleration: number}> = [];
-      
-      // Need at least 3 points to detect velocity changes
-      if (dataPoints.length >= 3) {
-        const velocities: number[] = [];
+      filteredHistory.forEach(trait => {
+        const key = trait.name.toLowerCase();
         
-        // Calculate velocities between consecutive points
-        for (let i = 0; i < dataPoints.length - 1; i++) {
-          // Ensure we're working with Date objects
-          const dateObj1 = new Date(dataPoints[i].date instanceof Date ?
-            dataPoints[i].date.getTime() : new Date(String(dataPoints[i].date)).getTime());
-          const dateObj2 = new Date(dataPoints[i + 1].date instanceof Date ?
-            dataPoints[i + 1].date.getTime() : new Date(String(dataPoints[i + 1].date)).getTime());
-          
-          const timeDiff = (dateObj2.getTime() - dateObj1.getTime()) / (1000 * 60 * 60 * 24 * 30); // Months
-          
-          if (timeDiff > 0) {
-            const scoreDiff = dataPoints[i + 1].score - dataPoints[i].score;
-            velocities.push(scoreDiff / timeDiff); // Score points per month
-          } else {
-            velocities.push(0); // No time passed between assessments
-          }
+        if (!traitsByName[key]) {
+          traitsByName[key] = [];
         }
         
-        // Calculate accelerations
-        for (let i = 0; i < velocities.length - 1; i++) {
-          const acceleration = velocities[i + 1] - velocities[i];
+        traitsByName[key].push(trait);
+      });
+      
+      // Identify milestones for each trait
+      const milestones: TraitMilestone[] = [];
+      
+      Object.entries(traitsByName).forEach(([name, traits]) => {
+        if (traits.length < 2) {
+          return; // Skip traits with insufficient history
+        }
+        
+        // Sort by date
+        const sortedTraits = [...traits].sort((a, b) => 
+          a.assessmentDate.getTime() - b.assessmentDate.getTime()
+        );
+        
+        // Baseline milestone (starting point)
+        const baselineTrait = sortedTraits[0];
+        milestones.push({
+          id: `milestone_baseline_${baselineTrait.id}`,
+          traitId: baselineTrait.id,
+          profileId,
+          score: baselineTrait.score,
+          date: baselineTrait.assessmentDate,
+          type: 'baseline',
+          description: `Initial assessment of ${baselineTrait.name}`,
+          evidence: `Assessment via ${baselineTrait.assessmentMethod} method`
+        });
+        
+        // Significant improvements
+        let lastMilestoneScore = baselineTrait.score;
+        let consecutiveGrowth = 0;
+        
+        for (let i = 1; i < sortedTraits.length; i++) {
+          const trait = sortedTraits[i];
+          const scoreDiff = trait.score - lastMilestoneScore;
           
-          // Only record significant changes in velocity
-          if (Math.abs(acceleration) >= 2) {
-            velocityChanges.push({
-              date: dataPoints[i + 1].date.toISOString().split('T')[0],
-              acceleration
+          // Check for significant improvements
+          if (scoreDiff >= 10) {
+            // Major improvement milestone
+            milestones.push({
+              id: `milestone_major_${trait.id}`,
+              traitId: trait.id,
+              profileId,
+              score: trait.score,
+              date: trait.assessmentDate,
+              type: 'improvement',
+              description: `Major improvement in ${trait.name}`,
+              evidence: `Score increased by ${scoreDiff} points from ${lastMilestoneScore} to ${trait.score}`
+            });
+            
+            lastMilestoneScore = trait.score;
+            consecutiveGrowth = 0;
+          } else if (scoreDiff > 0) {
+            consecutiveGrowth += scoreDiff;
+            
+            // Check for consistent growth milestone
+            if (consecutiveGrowth >= 15) {
+              milestones.push({
+                id: `milestone_consistent_${trait.id}`,
+                traitId: trait.id,
+                profileId,
+                score: trait.score,
+                date: trait.assessmentDate,
+                type: 'improvement',
+                description: `Consistent improvement in ${trait.name}`,
+                evidence: `Score has consistently improved by ${consecutiveGrowth} points over multiple assessments`
+              });
+              
+              lastMilestoneScore = trait.score;
+              consecutiveGrowth = 0;
+            }
+          } else {
+            // Reset consecutive growth counter on decline
+            consecutiveGrowth = 0;
+          }
+          
+          // Check for threshold crossings (e.g., crossing 50, 75, 90 points)
+          const thresholds = [90, 75, 50];
+          for (const threshold of thresholds) {
+            const prevTrait = sortedTraits[i-1];
+            if (prevTrait.score < threshold && trait.score >= threshold) {
+              milestones.push({
+                id: `milestone_threshold_${trait.id}_${threshold}`,
+                traitId: trait.id,
+                profileId,
+                score: trait.score,
+                date: trait.assessmentDate,
+                type: 'threshold',
+                description: `${trait.name} reached ${threshold}+ level`,
+                evidence: `Score increased from ${prevTrait.score} to ${trait.score}, crossing the ${threshold} threshold`
+              });
+            }
+          }
+          
+          // Check for achievement milestones (based on metadata)
+          if (trait.metadata?.certificationEarned || 
+              trait.metadata?.recognition || 
+              trait.metadata?.achievement) {
+            const achievementDesc = trait.metadata.certificationEarned || 
+                                   trait.metadata.recognition || 
+                                   trait.metadata.achievement || 
+                                   'Notable achievement';
+            
+            milestones.push({
+              id: `milestone_achievement_${trait.id}`,
+              traitId: trait.id,
+              profileId,
+              score: trait.score,
+              date: trait.assessmentDate,
+              type: 'recognition',
+              description: `Recognition for ${trait.name}`,
+              evidence: achievementDesc
             });
           }
         }
-      }
+        
+        // Latest assessment milestone
+        const latestTrait = sortedTraits[sortedTraits.length - 1];
+        milestones.push({
+          id: `milestone_latest_${latestTrait.id}`,
+          traitId: latestTrait.id,
+          profileId,
+          score: latestTrait.score,
+          date: latestTrait.assessmentDate,
+          type: 'current',
+          description: `Current level of ${latestTrait.name}`,
+          evidence: `Latest assessment via ${latestTrait.assessmentMethod} method`
+        });
+      });
       
-      // Determine confidence level based on number of data points and R-squared
-      let confidence: 'high' | 'medium' | 'low';
-      
-      if (dataPoints.length >= 5 && rSquared >= 0.7) {
-        confidence = 'high';
-      } else if (dataPoints.length >= 3 && rSquared >= 0.5) {
-        confidence = 'medium';
-      } else {
-        confidence = 'low';
-      }
-      
-      // Determine growth pattern
-      let trend: 'linear' | 'exponential' | 'plateauing' | 'fluctuating';
-      
-      // Check if pattern is fluctuating (high variability)
-      if (this.calculateVariabilityIndex(scores) > 0.4) {
-        trend = 'fluctuating';
-      } 
-      // Check if pattern is plateauing (recent growth slowing down)
-      else if (dataPoints.length >= 4 && this.detectPlateauing(dataPoints)) {
-        trend = 'plateauing';
-      }
-      // Check if pattern is exponential (accelerating growth)
-      else if (velocityChanges.filter(vc => vc.acceleration > 0).length > velocityChanges.filter(vc => vc.acceleration < 0).length) {
-        trend = 'exponential';
-      }
-      // Default to linear
-      else {
-        trend = 'linear';
-      }
-      
-      return {
-        monthlyGrowthRate,
-        rSquared,
-        velocityChanges,
-        confidence,
-        trend
-      };
+      // Sort milestones by date
+      return milestones.sort((a, b) => a.date.getTime() - b.date.getTime());
     } catch (error) {
-      logger.error('Error calculating growth metrics', { error });
-      return {
-        monthlyGrowthRate: 0,
-        rSquared: 0,
-        velocityChanges: [],
-        confidence: 'low',
-        trend: 'linear'
-      };
+      logger.error('Error identifying trait milestones', { error, profileId });
+      throw new Error(`Failed to identify milestones: ${error.message}`);
     }
   }
 
   /**
-   * Calculate variability index of scores
+   * Perform comparative historical analysis
+   * Compares trait evolution across different time periods
    */
-  private calculateVariabilityIndex(scores: number[]): number {
-    if (scores.length < 2) return 0;
-    
-    // Calculate mean
-    const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    
-    // Calculate variance
-    const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
-    
-    // Calculate standard deviation
-    const stdDev = Math.sqrt(variance);
-    
-    // Coefficient of variation (normalized by score range)
-    return stdDev / (Math.max(...scores) - Math.min(...scores) || 100);
-  }
-
-  /**
-   * Check if growth pattern is plateauing
-   */
-  private detectPlateauing(dataPoints: TraitDataPoint[]): boolean {
-    if (dataPoints.length < 4) return false;
-    
-    // Calculate growth rates for first half and second half
-    const midpoint = Math.floor(dataPoints.length / 2);
-    
-    const firstHalf = dataPoints.slice(0, midpoint);
-    const secondHalf = dataPoints.slice(midpoint);
-    
-    const firstHalfGrowth = this.calculateSimpleGrowthRate(firstHalf);
-    const secondHalfGrowth = this.calculateSimpleGrowthRate(secondHalf);
-    
-    // Plateauing means growth in second half is significantly slower
-    return secondHalfGrowth < firstHalfGrowth * 0.7;
-  }
-
-  /**
-   * Calculate a simple growth rate for a set of data points
-   */
-  private calculateSimpleGrowthRate(dataPoints: TraitDataPoint[]): number {
-    if (dataPoints.length < 2) return 0;
-    
-    const firstScore = dataPoints[0].score;
-    const lastScore = dataPoints[dataPoints.length - 1].score;
-    
-    const scoreDiff = lastScore - firstScore;
-    
-    // Ensure we're working with Date objects
-    const lastDateObj = new Date(dataPoints[dataPoints.length - 1].date instanceof Date ?
-      dataPoints[dataPoints.length - 1].date.getTime() : new Date(String(dataPoints[dataPoints.length - 1].date)).getTime());
-    const firstDateObj = new Date(dataPoints[0].date instanceof Date ?
-      dataPoints[0].date.getTime() : new Date(String(dataPoints[0].date)).getTime());
-    
-    const totalMonths = (lastDateObj.getTime() - firstDateObj.getTime()) / (1000 * 60 * 60 * 24 * 30);
-    
-    return totalMonths > 0 ? scoreDiff / totalMonths : 0;
-  }
-
-  /**
-   * Analyze the trend of trait evolution
-   * Provides detailed insights into growth patterns and velocity changes
-   */
-  private analyzeTrend(dataPoints: TraitDataPoint[], growthMetrics: any): {
-    status: string;
-    description: string;
-    confidence: 'high' | 'medium' | 'low';
-    pattern?: string;
-    velocityChanges?: number;
-  } {
+  async performComparativeHistoricalAnalysis(
+    profileId: string,
+    traitName: string,
+    periods: Array<{
+      name: string;
+      startDate: Date;
+      endDate: Date;
+    }>
+  ): Promise<{
+    traitName: string;
+    comparisons: Array<{
+      periodName: string;
+      startScore: number;
+      endScore: number;
+      growth: number;
+      growthRate: number;
+    }>;
+    bestGrowthPeriod: string;
+    worstGrowthPeriod: string;
+    overallTrend: 'improving' | 'declining' | 'fluctuating' | 'stable';
+  }> {
     try {
-      if (dataPoints.length < 2) {
-        return {
-          status: 'insufficient-data',
-          description: 'Not enough data points to determine a trend',
-          confidence: 'low'
-        };
+      logger.info('Performing comparative historical analysis', { profileId, traitName });
+      
+      // Validate periods
+      if (!periods || periods.length < 2) {
+        throw new Error('At least two time periods are required for comparative analysis');
       }
-
-      // Generate status based on growth rate
-      let status = 'stable';
-      if (growthMetrics.monthlyGrowthRate > 0.5) status = 'rapid-growth';
-      else if (growthMetrics.monthlyGrowthRate > 0.2) status = 'growth';
-      else if (growthMetrics.monthlyGrowthRate < -0.5) status = 'rapid-decline';
-      else if (growthMetrics.monthlyGrowthRate < -0.2) status = 'decline';
       
-      // Generate trend description
-      let description = '';
+      // Analyze each period
+      const periodAnalyses: Array<{
+        periodName: string;
+        startDate: Date;
+        endDate: Date;
+        startScore: number;
+        endScore: number;
+        growth: number;
+        growthRate: number; // points per month
+      }> = [];
       
-      // If we have enough data points for a meaningful trend
-      if (dataPoints.length >= 3) {
-        if (growthMetrics.trend === 'linear') {
-          if (growthMetrics.monthlyGrowthRate > 0) {
-            description = 'Showing consistent improvement over time';
-          } else if (growthMetrics.monthlyGrowthRate < 0) {
-            description = 'Showing consistent decline over time';
-          } else {
-            description = 'Maintaining a stable level over time';
-          }
-        } else if (growthMetrics.trend === 'exponential') {
-          description = 'Showing accelerating improvement with increasing growth rate';
-        } else if (growthMetrics.trend === 'plateauing') {
-          description = 'Initial growth is slowing down and reaching a stable level';
-        } else if (growthMetrics.trend === 'fluctuating') {
-          description = 'Showing inconsistent changes with significant fluctuations';
+      for (const period of periods) {
+        // Get trait history for this period
+        const traitHistory = await this.dataRepository.getTraitHistory(
+          profileId,
+          traitName,
+          period.startDate,
+          period.endDate
+        );
+        
+        if (!traitHistory || traitHistory.length < 2) {
+          logger.warn(`Insufficient history for period ${period.name}`, { profileId, traitName });
+          continue;
         }
         
-        // Add confidence qualifier if not high
-        if (growthMetrics.confidence !== 'high') {
-          description += ` (${growthMetrics.confidence} confidence due to limited data)`;
-        }
-      } else {
-        description = 'Limited data points available for trend analysis';
-      }
-      
-      // Add information about velocity changes
-      const velocityChanges = growthMetrics.velocityChanges?.length || 0;
-      let pattern;
-      
-      if (velocityChanges > 0) {
-        const positiveAccelerations = growthMetrics.velocityChanges?.filter((vc: any) => vc.acceleration > 0).length || 0;
-        const negativeAccelerations = growthMetrics.velocityChanges?.filter((vc: any) => vc.acceleration < 0).length || 0;
+        // Sort by date
+        const sortedHistory = [...traitHistory].sort((a, b) => 
+          a.assessmentDate.getTime() - b.assessmentDate.getTime()
+        );
         
-        if (positiveAccelerations > negativeAccelerations) {
-          pattern = 'Generally accelerating growth with occasional slowdowns';
-        } else if (negativeAccelerations > positiveAccelerations) {
-          pattern = 'Slowing growth trend with occasional improvements';
-        } else {
-          pattern = 'Mixed growth pattern with equivalent accelerations and slowdowns';
-        }
-      } else {
-        pattern = 'Consistent growth pattern without significant velocity changes';
+        const startScore = sortedHistory[0].score;
+        const endScore = sortedHistory[sortedHistory.length - 1].score;
+        const growth = endScore - startScore;
+        
+        // Calculate growth rate (points per month)
+        const timeSpanMs = period.endDate.getTime() - period.startDate.getTime();
+        const monthsElapsed = timeSpanMs / (30 * 24 * 60 * 60 * 1000);
+        const growthRate = monthsElapsed > 0 ? growth / monthsElapsed : 0;
+        
+        periodAnalyses.push({
+          periodName: period.name,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          startScore,
+          endScore,
+          growth,
+          growthRate
+        });
       }
-
+      
+      if (periodAnalyses.length < 2) {
+        throw new Error('Insufficient data for comparative analysis - need at least two valid periods');
+      }
+      
+      // Find best and worst growth periods
+      let bestGrowthPeriod = periodAnalyses[0];
+      let worstGrowthPeriod = periodAnalyses[0];
+      
+      for (let i = 1; i < periodAnalyses.length; i++) {
+        const analysis = periodAnalyses[i];
+        
+        if (analysis.growth > bestGrowthPeriod.growth) {
+          bestGrowthPeriod = analysis;
+        }
+        
+        if (analysis.growth < worstGrowthPeriod.growth) {
+          worstGrowthPeriod = analysis;
+        }
+      }
+      
+      // Determine overall trend
+      let overallTrend: 'improving' | 'declining' | 'fluctuating' | 'stable';
+      
+      // Count growth periods and decline periods
+      const growthPeriods = periodAnalyses.filter(p => p.growth > 5).length;
+      const declinePeriods = periodAnalyses.filter(p => p.growth < -5).length;
+      const stablePeriods = periodAnalyses.filter(p => Math.abs(p.growth) <= 5).length;
+      
+      if (growthPeriods > declinePeriods && growthPeriods > stablePeriods) {
+        overallTrend = 'improving';
+      } else if (declinePeriods > growthPeriods && declinePeriods > stablePeriods) {
+        overallTrend = 'declining';
+      } else if (growthPeriods > 0 && declinePeriods > 0) {
+        overallTrend = 'fluctuating';
+      } else {
+        overallTrend = 'stable';
+      }
+      
+      // Format comparisons for response
+      const comparisons = periodAnalyses.map(analysis => ({
+        periodName: analysis.periodName,
+        startScore: analysis.startScore,
+        endScore: analysis.endScore,
+        growth: analysis.growth,
+        growthRate: analysis.growthRate
+      }));
+      
       return {
-        status,
-        description,
-        confidence: growthMetrics.confidence,
-        pattern,
-        velocityChanges
+        traitName,
+        comparisons,
+        bestGrowthPeriod: bestGrowthPeriod.periodName,
+        worstGrowthPeriod: worstGrowthPeriod.periodName,
+        overallTrend
       };
     } catch (error) {
-      logger.error('Error analyzing trait trend', { error });
+      logger.error('Error performing comparative historical analysis', { error, profileId, traitName });
+      throw new Error(`Failed to perform comparative historical analysis: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate development trends report
+   */
+  async generateDevelopmentTrendsReport(
+    profileId: string,
+    options?: {
+      startDate?: Date;
+      endDate?: Date;
+      topTraits?: number;
+    }
+  ): Promise<{
+    overallGrowth: number;
+    topGrowingTraits: Array<{
+      name: string;
+      category: string;
+      growth: number;
+      growthPercentage: number;
+    }>;
+    topDecliningTraits: Array<{
+      name: string;
+      category: string;
+      decline: number;
+      declinePercentage: number;
+    }>;
+    categoryTrends: Array<{
+      category: string;
+      averageGrowth: number;
+      topGrowingTrait?: string;
+      topDecliningTrait?: string;
+    }>;
+    insightSummary: string;
+  }> {
+    try {
+      logger.info('Generating development trends report', { profileId });
+      
+      // Default values
+      const endDate = options?.endDate || new Date();
+      const startDate = options?.startDate || new Date(endDate.getTime() - (180 * 24 * 60 * 60 * 1000)); // 6 months by default
+      const topTraitCount = options?.topTraits || 5;
+      
+      // Get trait evolution data
+      const evolutionData = await this.trackTraitEvolution(profileId, {
+        startDate,
+        endDate
+      });
+      
+      if (!evolutionData.traits || evolutionData.traits.length === 0) {
+        return {
+          overallGrowth: 0,
+          topGrowingTraits: [],
+          topDecliningTraits: [],
+          categoryTrends: [],
+          insightSummary: 'Insufficient data to generate development trends report.'
+        };
+      }
+      
+      // Sort traits by growth/decline
+      const traitsByGrowth = [...evolutionData.traits].sort((a, b) => 
+        b.analysis.growth - a.analysis.growth
+      );
+      
+      // Get top growing and declining traits
+      const topGrowingTraits = traitsByGrowth
+        .filter(t => t.analysis.growth > 0)
+        .slice(0, topTraitCount)
+        .map(t => ({
+          name: t.name,
+          category: t.category,
+          growth: t.analysis.growth,
+          growthPercentage: t.analysis.growthPercentage
+        }));
+      
+      const topDecliningTraits = [...traitsByGrowth]
+        .reverse()
+        .filter(t => t.analysis.growth < 0)
+        .slice(0, topTraitCount)
+        .map(t => ({
+          name: t.name,
+          category: t.category,
+          decline: -t.analysis.growth,
+          declinePercentage: -t.analysis.growthPercentage
+        }));
+      
+      // Group by category and analyze category trends
+      const traitsByCategory: Record<string, Array<typeof traitsByGrowth[0]>> = {};
+      
+      evolutionData.traits.forEach(trait => {
+        if (!traitsByCategory[trait.category]) {
+          traitsByCategory[trait.category] = [];
+        }
+        
+        traitsByCategory[trait.category].push(trait);
+      });
+      
+      const categoryTrends = Object.entries(traitsByCategory).map(([category, traits]) => {
+        // Calculate average growth for the category
+        const totalGrowth = traits.reduce((sum, t) => sum + t.analysis.growth, 0);
+        const averageGrowth = traits.length > 0 ? totalGrowth / traits.length : 0;
+        
+        // Find top growing trait in category
+        const topGrowingTrait = traits.length > 0 
+          ? [...traits].sort((a, b) => b.analysis.growth - a.analysis.growth)[0].name
+          : undefined;
+        
+        // Find top declining trait in category
+        const topDecliningTrait = traits.length > 0
+          ? [...traits].sort((a, b) => a.analysis.growth - b.analysis.growth)[0].name
+          : undefined;
+        
+        return {
+          category,
+          averageGrowth,
+          topGrowingTrait,
+          topDecliningTrait
+        };
+      });
+      
+      // Generate insight summary
+      let insightSummary = '';
+      
+      if (evolutionData.overallGrowth > 0) {
+        insightSummary = `Overall positive growth trend with a ${evolutionData.overallGrowth} point increase in trait scores. `;
+      } else if (evolutionData.overallGrowth < 0) {
+        insightSummary = `Overall negative growth trend with a ${-evolutionData.overallGrowth} point decrease in trait scores. `;
+      } else {
+        insightSummary = `Overall stable trait scores with no significant change. `;
+      }
+      
+      if (topGrowingTraits.length > 0) {
+        insightSummary += `The most significant growth was observed in ${topGrowingTraits[0].name} with a +${topGrowingTraits[0].growth} point increase. `;
+      }
+      
+      if (topDecliningTraits.length > 0) {
+        insightSummary += `The most significant decline was observed in ${topDecliningTraits[0].name} with a -${topDecliningTraits[0].decline} point decrease. `;
+      }
+      
+      // Identify strongest and weakest category trends
+      const sortedCategories = [...categoryTrends].sort((a, b) => b.averageGrowth - a.averageGrowth);
+      
+      if (sortedCategories.length > 0) {
+        const strongestCategory = sortedCategories[0];
+        const weakestCategory = sortedCategories[sortedCategories.length - 1];
+        
+        if (strongestCategory.averageGrowth > 0) {
+          insightSummary += `The ${strongestCategory.category} category showed the strongest growth. `;
+        }
+        
+        if (weakestCategory.averageGrowth < 0) {
+          insightSummary += `The ${weakestCategory.category} category showed the most decline and may need attention.`;
+        }
+      }
+      
       return {
-        status: 'error',
-        description: 'Error analyzing trend data',
-        confidence: 'low'
+        overallGrowth: evolutionData.overallGrowth,
+        topGrowingTraits,
+        topDecliningTraits,
+        categoryTrends,
+        insightSummary
       };
+    } catch (error) {
+      logger.error('Error generating development trends report', { error, profileId });
+      throw new Error(`Failed to generate development trends report: ${error.message}`);
     }
   }
 }

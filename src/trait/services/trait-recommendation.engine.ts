@@ -1,805 +1,1104 @@
-import logger from '../../logger';
-import { TraitRecommendation, TraitBenchmark } from '../models/trait.model';
-import { TraitAnalyticsEngine } from './trait-analytics.engine';
+import logger from '../../utils/logger';
+import { Trait } from '../models/trait.model';
 
 /**
- * Engine for generating trait-based recommendations and insights
- * Provides personalized development recommendations and benchmark comparisons
+ * TraitRecommendationEngine
+ * Generates recommendations based on trait analysis
  */
 export class TraitRecommendationEngine {
-  private analyticsEngine: TraitAnalyticsEngine;
-  
-  // Industry benchmark data by trait and industry
-  private readonly industryBenchmarks: Record<string, Record<string, TraitBenchmark>> = {
-    'Technology': {
-      'Analytical Thinking': { minimum: 65, target: 80, exceptional: 90, importance: 'critical' },
-      'Systems Thinking': { minimum: 70, target: 85, exceptional: 95, importance: 'critical' },
-      'Problem Solving': { minimum: 75, target: 85, exceptional: 95, importance: 'critical' },
-      'Communication': { minimum: 65, target: 75, exceptional: 90, importance: 'high' },
-      'Leadership': { minimum: 60, target: 75, exceptional: 85, importance: 'medium' }
-    },
-    'Finance': {
-      'Analytical Thinking': { minimum: 75, target: 85, exceptional: 95, importance: 'critical' },
-      'Problem Solving': { minimum: 70, target: 80, exceptional: 90, importance: 'high' },
-      'Communication': { minimum: 65, target: 75, exceptional: 85, importance: 'high' },
-      'Leadership': { minimum: 70, target: 80, exceptional: 90, importance: 'high' },
-      'Efficiency': { minimum: 70, target: 80, exceptional: 90, importance: 'critical' }
-    },
-    'Healthcare': {
-      'Communication': { minimum: 75, target: 85, exceptional: 95, importance: 'critical' },
-      'Problem Solving': { minimum: 70, target: 80, exceptional: 90, importance: 'critical' },
-      'Resilience': { minimum: 70, target: 85, exceptional: 95, importance: 'critical' },
-      'Collaboration': { minimum: 75, target: 85, exceptional: 95, importance: 'high' },
-      'Adaptability': { minimum: 70, target: 80, exceptional: 90, importance: 'high' }
-    },
-    'Consulting': {
-      'Communication': { minimum: 80, target: 90, exceptional: 95, importance: 'critical' },
-      'Problem Solving': { minimum: 75, target: 85, exceptional: 95, importance: 'critical' },
-      'Leadership': { minimum: 70, target: 80, exceptional: 90, importance: 'high' },
-      'Strategic Thinking': { minimum: 75, target: 85, exceptional: 95, importance: 'critical' },
-      'Adaptability': { minimum: 70, target: 80, exceptional: 90, importance: 'high' }
-    },
-    'Manufacturing': {
-      'Efficiency': { minimum: 75, target: 85, exceptional: 95, importance: 'critical' },
-      'Problem Solving': { minimum: 70, target: 80, exceptional: 90, importance: 'high' },
-      'Systems Thinking': { minimum: 65, target: 75, exceptional: 85, importance: 'high' },
-      'Collaboration': { minimum: 65, target: 75, exceptional: 85, importance: 'high' },
-      'Leadership': { minimum: 65, target: 75, exceptional: 85, importance: 'medium' }
-    },
-    // Default benchmarks when no industry is specified
-    'Default': {
-      'Analytical Thinking': { minimum: 65, target: 75, exceptional: 90, importance: 'high' },
-      'Systems Thinking': { minimum: 65, target: 75, exceptional: 85, importance: 'medium' },
-      'Problem Solving': { minimum: 70, target: 80, exceptional: 90, importance: 'high' },
-      'Communication': { minimum: 70, target: 80, exceptional: 90, importance: 'critical' },
-      'Leadership': { minimum: 65, target: 75, exceptional: 85, importance: 'medium' },
-      'Strategic Thinking': { minimum: 65, target: 75, exceptional: 90, importance: 'high' },
-      'Adaptability': { minimum: 65, target: 75, exceptional: 90, importance: 'high' },
-      'Resilience': { minimum: 65, target: 75, exceptional: 85, importance: 'medium' },
-      'Collaboration': { minimum: 70, target: 80, exceptional: 90, importance: 'high' },
-      'Efficiency': { minimum: 65, target: 75, exceptional: 85, importance: 'medium' },
-      'Initiative': { minimum: 60, target: 70, exceptional: 85, importance: 'medium' },
-      'Creative Thinking': { minimum: 60, target: 70, exceptional: 85, importance: 'medium' },
-      'Innovation': { minimum: 60, target: 70, exceptional: 85, importance: 'medium' }
-    }
-  };
-  
-  // Recommendations by trait and gap level
-  private readonly traitRecommendations: Record<string, Record<string, string[]>> = {
-    'Analytical Thinking': {
-      'large': [
-        'Enroll in a formal course on data analysis or statistics',
-        'Set aside time daily to practice analytical exercises',
-        'Join a study group focused on analytical problem-solving',
-        'Seek opportunities to analyze complex datasets in your current role'
-      ],
-      'medium': [
-        'Read books on logical reasoning and analytical frameworks',
-        'Practice breaking down problems into smaller components',
-        'Subscribe to publications that emphasize analytical thinking',
-        'Request projects that involve data interpretation'
-      ],
-      'small': [
-        'Join online forums discussing analytical approaches',
-        'Begin documenting your analytical processes',
-        'Schedule regular reviews of your analytical work',
-        'Seek feedback on your analytical outputs from peers'
-      ]
-    },
-    'Systems Thinking': {
-      'large': [
-        'Take a comprehensive course on systems theory and thinking',
-        'Seek mentorship from experienced systems thinkers in your field',
-        'Read foundational texts on systems thinking by Peter Senge or Donella Meadows',
-        'Participate in cross-functional projects to understand interconnections'
-      ],
-      'medium': [
-        'Practice creating systems maps for complex problems',
-        'Attend workshops on system dynamics and modeling',
-        'Analyze case studies involving complex systems',
-        'Join communities of practice focused on systems approaches'
-      ],
-      'small': [
-        'Begin incorporating systems considerations in your daily work',
-        'Look for feedback loops and unintended consequences in your projects',
-        'Practice visualizing relationships between components',
-        'Reflect on how changes in one area affect other areas'
-      ]
-    },
-    'Communication': {
-      'large': [
-        'Join Toastmasters or a similar public speaking organization',
-        'Enroll in a comprehensive communications course',
-        'Work with a communication coach for personalized feedback',
-        'Volunteer for roles that center heavily on communication'
-      ],
-      'medium': [
-        'Actively practice structuring your messages for clarity',
-        'Record presentations and analyze your communication style',
-        'Request regular feedback on your communication effectiveness',
-        'Take on projects requiring diverse communication methods'
-      ],
-      'small': [
-        'Read books on effective communication techniques',
-        'Practice active listening in your conversations',
-        'Focus on simplifying complex topics when explaining them',
-        'Pay attention to non-verbal cues in your interactions'
-      ]
-    },
-    'Leadership': {
-      'large': [
-        'Enroll in a formal leadership development program',
-        'Seek mentorship from respected leaders in your field',
-        'Request to lead significant projects to gain experience',
-        'Join leadership organizations or communities of practice'
-      ],
-      'medium': [
-        'Take on leadership roles in community or volunteer organizations',
-        'Read books by respected leadership thinkers',
-        'Attend leadership workshops and seminars',
-        'Practice delegation and effective feedback techniques'
-      ],
-      'small': [
-        'Identify and emulate leadership behaviors you admire',
-        'Request more responsibility in your current role',
-        'Journal about your leadership experiences and learnings',
-        'Seek feedback on your leadership approach from peers'
-      ]
-    },
-    'Strategic Thinking': {
-      'large': [
-        'Enroll in courses that focus on strategic planning and analysis',
-        'Participate in strategy development for your organization',
-        'Practice scenario planning and long-term forecasting',
-        'Study strategic case studies from your industry'
-      ],
-      'medium': [
-        'Regularly schedule time for long-term thinking',
-        'Analyze competitors and market trends in your industry',
-        'Read books focused on strategic planning methods',
-        'Start contributing strategic ideas in meetings'
-      ],
-      'small': [
-        'Develop the habit of considering long-term implications',
-        'Connect daily tasks to broader organizational goals',
-        'Practice prioritizing based on strategic impact',
-        'Subscribe to publications that discuss industry strategy'
-      ]
-    },
-    'Problem Solving': {
-      'large': [
-        'Take courses in decision making and problem-solving methodologies',
-        'Volunteer to solve complex problems in your organization',
-        'Study design thinking and systematic problem-solving approaches',
-        'Join communities that tackle challenging problems in your field'
-      ],
-      'medium': [
-        'Practice using different problem-solving frameworks',
-        'Regularly challenge yourself with problems outside your comfort zone',
-        'Document your problem-solving processes and outcomes',
-        'Seek feedback on your approaches to complex issues'
-      ],
-      'small': [
-        'Allocate time for creative problem-solving exercises',
-        'Read case studies about innovative problem solutions',
-        'Engage in brainstorming sessions more often',
-        "Reflect on problems you've solved and identify patterns"
-      ]
-    },
-    'Adaptability': {
-      'large': [
-        'Deliberately seek roles that require frequent adaptation',
-        'Place yourself in new environments and situations regularly',
-        'Study change management strategies and techniques',
-        'Practice rapid response to changing circumstances'
-      ],
-      'medium': [
-        'Develop contingency plans for your primary activities',
-        'Cross-train in different skills or domain areas',
-        'Practice reframing challenges as opportunities',
-        'Engage in activities with uncertain outcomes'
-      ],
-      'small': [
-        'Reflect on your responses to changes and identify patterns',
-        'Introduce small changes to your routine regularly',
-        'Practice flexible thinking in everyday situations',
-        'Seek feedback on how you handle unexpected situations'
-      ]
-    },
-    'Resilience': {
-      'large': [
-        'Work with a coach or therapist on resilience strategies',
-        'Practice stress management techniques daily',
-        'Take on challenging projects with potential for setbacks',
-        'Develop strong support networks for difficult times'
-      ],
-      'medium': [
-        'Study resilience research and evidence-based practices',
-        'Practice reframing negative events in constructive ways',
-        'Build regular reflection time into your schedule',
-        'Work on developing emotional intelligence'
-      ],
-      'small': [
-        'Maintain a resilience journal to track responses to challenges',
-        'Identify your typical reactions to setbacks',
-        'Practice mindfulness and present-moment awareness',
-        'Schedule regular self-care activities'
-      ]
-    },
-    'Initiative': {
-      'large': [
-        'Create and implement a significant self-directed project',
-        'Volunteer to lead new initiatives in your organization',
-        'Seek opportunities where you must be self-starting',
-        'Start a side project or business venture'
-      ],
-      'medium': [
-        'Regularly suggest improvements in team processes',
-        'Set personal goals for proactive contributions',
-        'Look for problems to solve before being asked',
-        'Practice making decisions without complete information'
-      ],
-      'small': [
-        'Start speaking up more in meetings with ideas',
-        'Create a personal system for identifying opportunities',
-        'Take on small additional responsibilities voluntarily',
-        'Challenge yourself to act without being prompted'
-      ]
-    },
-    'Collaboration': {
-      'large': [
-        'Join or form cross-functional project teams',
-        'Study collaborative methodologies and frameworks',
-        'Request roles focused on coordination and teamwork',
-        'Facilitate collaborative workshops or sessions'
-      ],
-      'medium': [
-        'Practice active listening and constructive feedback',
-        'Suggest collaborative approaches to individual tasks',
-        'Build relationships across different departments',
-        'Contribute to shared knowledge bases or documentation'
-      ],
-      'small': [
-        'Seek opportunities for pair work or team problem-solving',
-        'Ask for and offer help more frequently',
-        'Share credit and recognize others\' contributions',
-        'Practice building on others\' ideas in discussions'
-      ]
-    },
-    'Creative Thinking': {
-      'large': [
-        'Take courses in creative thinking or design thinking',
-        'Start a regular creative practice outside your comfort zone',
-        'Join innovation teams or creative problem-solving groups',
-        'Practice ideation techniques like SCAMPER or lateral thinking'
-      ],
-      'medium': [
-        'Schedule regular time for divergent thinking',
-        'Seek exposure to diverse perspectives and disciplines',
-        'Keep an idea journal to capture creative thoughts',
-        'Attend workshops on creativity and innovation'
-      ],
-      'small': [
-        'Challenge assumptions in your daily work',
-        'Try solving familiar problems in new ways',
-        'Engage in creative hobbies to build creative muscles',
-        'Regularly ask "what if" questions about your work'
-      ]
-    },
-    'Efficiency': {
-      'large': [
-        'Study process improvement methodologies like Lean or Six Sigma',
-        'Learn advanced productivity systems and tools',
-        'Take on projects focused on optimization',
-        'Measure and track your efficiency metrics'
-      ],
-      'medium': [
-        'Conduct time audits of your regular activities',
-        'Implement structured productivity methods like GTD or Pomodoro',
-        'Look for and eliminate redundancies in your workflows',
-        'Automate routine tasks where possible'
-      ],
-      'small': [
-        'Start timeboxing your activities',
-        'Regularly review and refine your processes',
-        'Learn keyboard shortcuts for common tools',
-        'Create templates for recurring work products'
-      ]
-    },
-    'Innovation': {
-      'large': [
-        'Join innovation initiatives or research projects',
-        'Develop proposals for new products or services',
-        'Study innovation methodologies and frameworks',
-        'Connect with leaders in innovative fields'
-      ],
-      'medium': [
-        'Practice applying new technologies to existing problems',
-        'Establish regular idea generation sessions',
-        'Read widely outside your field for cross-pollination',
-        'Experiment with prototyping and testing new concepts'
-      ],
-      'small': [
-        'Set aside time for exploring new ideas and approaches',
-        'Join innovation-focused communities or forums',
-        'Practice identifying needs or pain points to address',
-        'Challenge the status quo in small, constructive ways'
-      ]
-    }
-  };
-
-  constructor() {
-    this.analyticsEngine = new TraitAnalyticsEngine();
-  }
-
   /**
-   * Generate personalized recommendations based on trait scores, industry, and career goals
+   * Generate content emphasis recommendations
+   * Suggests which content to emphasize based on trait strengths
    */
-  generateRecommendations(
-    traits: Array<{name: string; category: string; score: number;}>,
-    industry?: string,
-    careerGoal?: string
-  ): TraitRecommendation[] {
-    try {
-      if (!traits || traits.length === 0) {
-        return [];
-      }
-      
-      const recommendations: TraitRecommendation[] = [];
-      const effectiveIndustry = industry || 'Default';
-      
-      // Get benchmarks for the industry
-      const benchmarks = this.industryBenchmarks[effectiveIndustry] || 
-                         this.industryBenchmarks['Default'];
-      
-      // Determine which traits need improvement based on benchmarks
-      for (const trait of traits) {
-        const benchmark = benchmarks[trait.name] || {
-          minimum: 65,  // Default values if trait-specific benchmark not found
-          target: 75,
-          exceptional: 90,
-          importance: 'medium' as 'critical' | 'high' | 'medium' | 'low'
-        };
-        
-        const gap = benchmark.target - trait.score;
-        const needsImprovement = gap > 0;
-        
-        // Only generate recommendations for traits that need improvement
-        if (needsImprovement) {
-          // Determine gap level for recommendation specificity
-          let gapLevel: 'large' | 'medium' | 'small';
-          if (gap >= 15) gapLevel = 'large';
-          else if (gap >= 7) gapLevel = 'medium';
-          else gapLevel = 'small';
-          
-          // Get recommendations for this trait and gap level
-          const traitRecs = this.traitRecommendations[trait.name]?.[gapLevel] || 
-                          this.getGenericRecommendations(trait.name, gapLevel);
-          
-          // Adjust recommendations based on career goals if provided
-          const tailoredRecs = careerGoal ? 
-                             this.tailorRecommendationsToCareerGoal(traitRecs, trait.name, careerGoal) : 
-                             traitRecs;
-          
-          recommendations.push({
-            trait: trait.name,
-            currentScore: trait.score,
-            industryBenchmark: benchmark.target,
-            gap,
-            needsImprovement,
-            recommendations: tailoredRecs
-          });
-        }
-      }
-      
-      // Sort recommendations by importance and gap size
-      return recommendations.sort((a, b) => {
-        const aImportance = benchmarks[a.trait]?.importance || 'medium';
-        const bImportance = benchmarks[b.trait]?.importance || 'medium';
-        
-        const importanceOrder: Record<string, number> = {
-          'critical': 3,
-          'high': 2,
-          'medium': 1,
-          'low': 0
-        };
-        
-        // Sort first by importance, then by gap size
-        return importanceOrder[bImportance] - importanceOrder[aImportance] || 
-               b.gap - a.gap;
-      });
-    } catch (error) {
-      logger.error('Error generating trait recommendations', { error });
-      return [];
+  generateContentEmphasisRecommendations(
+    traits: Trait[],
+    context?: {
+      industry?: string;
+      role?: string;
+      audience?: string;
     }
-  }
-
-  /**
-   * Generate recommendations for a specific focus trait
-   */
-  generateFocusRecommendations(
-    traits: Array<{name: string; category: string; score: number;}>,
-    focusTrait: string,
-    industry?: string,
-    careerGoal?: string
-  ): {
-    primaryRecommendations: string[];
-    relatedTraitRecommendations: Array<{trait: string; recommendations: string[]}>;
-    resources: string[];
-  } {
-    try {
-      // Find the specific trait
-      const trait = traits.find(t => t.name === focusTrait);
-      if (!trait) {
-        throw new Error(`Trait ${focusTrait} not found`);
-      }
-      
-      // Get general recommendations for this trait
-      const recommendations = this.generateRecommendations([trait], industry, careerGoal);
-      const primaryRecommendations = recommendations.length > 0 ? 
-                                   recommendations[0].recommendations : 
-                                   this.getGenericRecommendations(focusTrait, 'medium');
-      
-      // Find related traits based on trait relationships
-      const relatedTraits: string[] = this.getRelatedTraits(focusTrait);
-      const relatedTraitObjects = traits.filter(t => relatedTraits.includes(t.name));
-      
-      // Generate recommendations for related traits
-      const relatedRecommendations = relatedTraitObjects.map(relatedTrait => {
-        const recs = this.generateRecommendations([relatedTrait], industry, careerGoal);
-        return {
-          trait: relatedTrait.name,
-          recommendations: recs.length > 0 ? 
-                          recs[0].recommendations.slice(0, 2) : // Just take top 2 recommendations
-                          this.getGenericRecommendations(relatedTrait.name, 'small').slice(0, 2)
-        };
-      });
-      
-      // Suggest resources specific to this trait
-      const resources = this.getTraitResources(focusTrait);
-      
-      return {
-        primaryRecommendations,
-        relatedTraitRecommendations: relatedRecommendations,
-        resources
-      };
-    } catch (error) {
-      logger.error('Error generating focus recommendations', { error, focusTrait });
-      return { 
-        primaryRecommendations: [], 
-        relatedTraitRecommendations: [], 
-        resources: [] 
-      };
-    }
-  }
-
-  /**
-   * Generate recommendations based on clusters of traits
-   */
-  generateClusterRecommendations(
-    traits: Array<{name: string; category: string; score: number;}>,
-    industry?: string,
-    careerGoal?: string
   ): Array<{
-    clusterName: string;
-    traits: string[];
-    overallScore: number;
-    recommendations: string[];
+    trait: string;
+    score: number;
+    emphasis: 'high' | 'medium' | 'low';
+    contentTypes: string[];
+    messagingRecommendations: string[];
+    priority: number;
   }> {
     try {
-      if (traits.length < 3) {
+      logger.info('Generating content emphasis recommendations', { context });
+      
+      if (!traits || traits.length === 0) {
+        logger.warn('No traits provided for content recommendations');
         return [];
       }
       
-      // Use the analytics engine to cluster traits
-      const clusters = this.analyticsEngine.clusterTraits(
-        traits.map(t => ({
-          id: '',
-          profileId: '',
-          name: t.name,
-          category: t.category,
-          score: t.score,
-          assessmentMethod: 'derived' as const,  // Use 'derived' which is part of the allowed values
-          assessmentDate: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }))
-      );
+      // Define content type mappings for different traits
+      const traitContentMapping: Record<string, {
+        contentTypes: string[];
+        messagingRecommendations: string[];
+        priorityMultiplier: number;
+      }> = {
+        'analytical thinking': {
+          contentTypes: ['case studies', 'data analysis', 'research papers', 'problem solutions'],
+          messagingRecommendations: [
+            'Emphasize methodical problem-solving approach',
+            'Highlight data-driven decision making',
+            'Showcase analytical frameworks used'
+          ],
+          priorityMultiplier: 1.2
+        },
+        'problem solving': {
+          contentTypes: ['case studies', 'solution demonstrations', 'before/after scenarios'],
+          messagingRecommendations: [
+            'Focus on challenges overcome',
+            'Describe innovative solutions developed',
+            'Quantify impact of problem resolution'
+          ],
+          priorityMultiplier: 1.3
+        },
+        'technical proficiency': {
+          contentTypes: ['technical projects', 'code examples', 'system architectures', 'technical tutorials'],
+          messagingRecommendations: [
+            'Demonstrate depth of technical knowledge',
+            'Showcase technical complexity handled',
+            'Highlight technical certifications and specialized skills'
+          ],
+          priorityMultiplier: 1.1
+        },
+        'leadership': {
+          contentTypes: ['team achievements', 'leadership stories', 'vision documents', 'strategic plans'],
+          messagingRecommendations: [
+            'Emphasize team development and mentoring',
+            'Highlight strategic vision and execution',
+            'Showcase decision-making process and outcomes'
+          ],
+          priorityMultiplier: 1.4
+        },
+        'communication': {
+          contentTypes: ['presentations', 'articles', 'documentation', 'client communications'],
+          messagingRecommendations: [
+            'Demonstrate clear communication of complex ideas',
+            'Showcase stakeholder communication successes',
+            'Highlight effective knowledge transfer examples'
+          ],
+          priorityMultiplier: 1.2
+        },
+        'collaboration': {
+          contentTypes: ['team projects', 'cross-functional initiatives', 'partnership outcomes'],
+          messagingRecommendations: [
+            'Highlight contributions to team success',
+            'Showcase cross-functional collaboration',
+            'Emphasize relationship building and maintenance'
+          ],
+          priorityMultiplier: 1.1
+        },
+        'innovation': {
+          contentTypes: ['innovative projects', 'patents', 'novel solutions', 'creative approaches'],
+          messagingRecommendations: [
+            'Highlight original thinking and approaches',
+            'Showcase innovative solutions developed',
+            'Emphasize creative problem-solving'
+          ],
+          priorityMultiplier: 1.3
+        },
+        'strategic thinking': {
+          contentTypes: ['strategic plans', 'vision documents', 'long-term impact projects'],
+          messagingRecommendations: [
+            'Emphasize big picture thinking',
+            'Show connection between actions and long-term goals',
+            'Highlight strategic insights that drove success'
+          ],
+          priorityMultiplier: 1.3
+        },
+        'adaptability': {
+          contentTypes: ['change management stories', 'diverse project experience', 'technology transitions'],
+          messagingRecommendations: [
+            'Showcase ability to thrive in changing environments',
+            'Highlight quick mastery of new skills or technologies',
+            'Demonstrate successful pivots in approach when needed'
+          ],
+          priorityMultiplier: 1.1
+        },
+        'attention to detail': {
+          contentTypes: ['quality assurance work', 'detailed specifications', 'precision-critical projects'],
+          messagingRecommendations: [
+            'Emphasize thoroughness and precision in work',
+            'Highlight error prevention and quality control',
+            'Showcase meticulous planning and implementation'
+          ],
+          priorityMultiplier: 1.0
+        }
+      };
       
-      const results: Array<{
-        clusterName: string;
-        traits: string[];
-        overallScore: number;
-        recommendations: string[];
+      // Context-specific adjustments
+      const industryPriorityAdjustments: Record<string, Record<string, number>> = {
+        'technology': {
+          'technical proficiency': 1.3,
+          'innovation': 1.3,
+          'problem solving': 1.2
+        },
+        'finance': {
+          'analytical thinking': 1.3,
+          'attention to detail': 1.3,
+          'ethical judgment': 1.4
+        },
+        'healthcare': {
+          'attention to detail': 1.4,
+          'empathy': 1.3,
+          'reliability': 1.3
+        },
+        'consulting': {
+          'analytical thinking': 1.3,
+          'communication': 1.4,
+          'problem solving': 1.3
+        },
+        'creative': {
+          'innovation': 1.5,
+          'creativity': 1.5,
+          'adaptability': 1.2
+        }
+      };
+      
+      // Role-specific adjustments
+      const rolePriorityAdjustments: Record<string, Record<string, number>> = {
+        'manager': {
+          'leadership': 1.5,
+          'communication': 1.3,
+          'strategic thinking': 1.3
+        },
+        'developer': {
+          'technical proficiency': 1.5,
+          'problem solving': 1.3,
+          'attention to detail': 1.2
+        },
+        'designer': {
+          'creativity': 1.5,
+          'user focus': 1.4,
+          'visual thinking': 1.4
+        },
+        'analyst': {
+          'analytical thinking': 1.5,
+          'attention to detail': 1.3,
+          'data literacy': 1.4
+        },
+        'executive': {
+          'strategic thinking': 1.5,
+          'leadership': 1.4,
+          'business acumen': 1.4
+        }
+      };
+      
+      // Generate recommendations for each trait
+      const recommendations: Array<{
+        trait: string;
+        score: number;
+        emphasis: 'high' | 'medium' | 'low';
+        contentTypes: string[];
+        messagingRecommendations: string[];
+        priority: number;
       }> = [];
       
-      // Generate recommendations for each cluster
-      for (const cluster of clusters.metaClusters) {
-        const clusterTraits = traits.filter(t => cluster.traits.includes(t.name));
+      // Process each trait
+      traits.forEach(trait => {
+        // Skip traits with low scores
+        if (trait.score < 40) {
+          return;
+        }
         
-        // Get average score for this cluster
-        const avgScore = cluster.averageScore;
+        // Get content mapping for this trait
+        const mapping = traitContentMapping[trait.name.toLowerCase()];
         
-        // Generate overall recommendations for the cluster
-        const recommendations = this.generateClusterFocusedRecommendations(
-          clusterTraits,
-          cluster.name,
-          industry,
-          careerGoal
-        );
+        // Skip traits we don't have mappings for
+        if (!mapping) {
+          return;
+        }
         
-        results.push({
-          clusterName: cluster.name,
-          traits: cluster.traits,
-          overallScore: avgScore,
-          recommendations
+        // Determine emphasis level based on score
+        let emphasis: 'high' | 'medium' | 'low';
+        if (trait.score >= 80) {
+          emphasis = 'high';
+        } else if (trait.score >= 60) {
+          emphasis = 'medium';
+        } else {
+          emphasis = 'low';
+        }
+        
+        // Calculate base priority from score and trait mapping
+        let priority = (trait.score / 100) * 10 * mapping.priorityMultiplier;
+        
+        // Apply context-specific adjustments
+        if (context?.industry) {
+          const industryAdjustments = industryPriorityAdjustments[context.industry.toLowerCase()];
+          if (industryAdjustments && industryAdjustments[trait.name.toLowerCase()]) {
+            priority *= industryAdjustments[trait.name.toLowerCase()];
+          }
+        }
+        
+        if (context?.role) {
+          const roleAdjustments = rolePriorityAdjustments[context.role.toLowerCase()];
+          if (roleAdjustments && roleAdjustments[trait.name.toLowerCase()]) {
+            priority *= roleAdjustments[trait.name.toLowerCase()];
+          }
+        }
+        
+        recommendations.push({
+          trait: trait.name,
+          score: trait.score,
+          emphasis,
+          contentTypes: mapping.contentTypes,
+          messagingRecommendations: mapping.messagingRecommendations,
+          priority: Math.round(priority)
         });
-      }
+      });
       
-      return results;
+      // Sort by priority (highest first)
+      return recommendations.sort((a, b) => b.priority - a.priority);
     } catch (error) {
-      logger.error('Error generating cluster recommendations', { error });
+      logger.error('Error generating content emphasis recommendations', { error });
       return [];
     }
   }
 
   /**
-   * Generate recommendations focused on a specific cluster of traits
+   * Generate skill development recommendations
+   * Suggests skills to develop based on trait analysis and career goals
    */
-  private generateClusterFocusedRecommendations(
-    traits: Array<{name: string; category: string; score: number;}>,
-    clusterName: string,
-    industry?: string,
-    careerGoal?: string
-  ): string[] {
-    // General recommendations by cluster
-    const clusterRecommendations: Record<string, string[]> = {
-      'Leadership Competency': [
-        'Seek integrated leadership experiences that combine strategic thinking and communication',
-        'Build a personal leadership development plan that includes regular reflection',
-        'Find mentors who excel in multiple leadership dimensions',
-        'Join leadership communities or networks for peer learning',
-        'Practice balancing strategic vision with tactical execution'
-      ],
-      'Innovation Profile': [
-        'Create an innovation portfolio with different types of projects',
-        'Establish regular time for creative exploration and problem-solving',
-        'Build cross-functional connections to enhance systems thinking',
-        'Study design thinking methodologies that combine creativity with analysis',
-        'Practice prototyping and testing ideas quickly'
-      ],
-      'Resilience Indicators': [
-        'Develop holistic resilience practices combining mental and emotional strategies',
-        'Create systems to track problems and solutions for faster adaptation',
-        'Build routines that support sustained energy and recovery',
-        'Practice scenario planning to prepare for various challenges',
-        'Study how others have navigated significant changes successfully'
-      ],
-      'Strategic Execution': [
-        'Develop frameworks that connect strategic thinking to tactical implementation',
-        'Create mechanisms to measure effectiveness of execution against strategy',
-        'Practice organizing complex initiatives into manageable components',
-        'Study cases of successful strategic implementation in your industry',
-        'Balance time between strategic thinking and execution activities'
-      ],
-      'Team Effectiveness': [
-        'Build skills in both team leadership and collaborative participation',
-        'Practice techniques for enhancing psychological safety in teams',
-        'Develop methods for constructive conflict resolution',
-        'Create frameworks for team decision-making and accountability',
-        'Study high-performing teams in contexts similar to yours'
-      ]
-    };
-    
-    let recommendations = clusterRecommendations[clusterName] || [];
-    
-    // If we have specific recommendations, return them
-    if (recommendations.length > 0) {
-      // Tailor to career goals if provided
-      if (careerGoal) {
-        recommendations = this.tailorRecommendationsToCareerGoal(recommendations, clusterName, careerGoal);
+  generateSkillDevelopmentRecommendations(
+    traits: Trait[],
+    options: {
+      careerGoal?: string;
+      targetRole?: string;
+      targetIndustry?: string;
+      currentRole?: string;
+    }
+  ): Array<{
+    trait: string;
+    currentScore: number;
+    recommendedScore: number;
+    gap: number;
+    developmentImportance: number;
+    resources: Array<{
+      type: string;
+      description: string;
+      url?: string;
+    }>;
+    actions: string[];
+  }> {
+    try {
+      logger.info('Generating skill development recommendations', { options });
+      
+      if (!traits || traits.length === 0) {
+        logger.warn('No traits provided for skill development recommendations');
+        return [];
       }
       
-      return recommendations;
-    }
-    
-    // Otherwise, build composite recommendations from individual traits
-    const allRecs: string[] = [];
-    
-    for (const trait of traits) {
-      const traitRecs = this.traitRecommendations[trait.name]?.['medium'] || 
-                      this.getGenericRecommendations(trait.name, 'medium');
+      // Define target trait profiles for different roles
+      const roleTraitProfiles: Record<string, Array<{
+        trait: string;
+        importance: number;
+        targetScore: number;
+      }>> = {
+        'software developer': [
+          { trait: 'technical proficiency', importance: 9, targetScore: 85 },
+          { trait: 'problem solving', importance: 9, targetScore: 80 },
+          { trait: 'attention to detail', importance: 7, targetScore: 75 },
+          { trait: 'continuous learning', importance: 8, targetScore: 80 },
+          { trait: 'analytical thinking', importance: 8, targetScore: 75 },
+          { trait: 'collaboration', importance: 6, targetScore: 70 }
+        ],
+        'project manager': [
+          { trait: 'leadership', importance: 8, targetScore: 80 },
+          { trait: 'communication', importance: 9, targetScore: 85 },
+          { trait: 'organization', importance: 8, targetScore: 80 },
+          { trait: 'time management', importance: 8, targetScore: 80 },
+          { trait: 'problem solving', importance: 7, targetScore: 75 },
+          { trait: 'adaptability', importance: 7, targetScore: 75 }
+        ],
+        'data scientist': [
+          { trait: 'analytical thinking', importance: 9, targetScore: 85 },
+          { trait: 'technical proficiency', importance: 8, targetScore: 80 },
+          { trait: 'problem solving', importance: 8, targetScore: 80 },
+          { trait: 'attention to detail', importance: 7, targetScore: 75 },
+          { trait: 'continuous learning', importance: 8, targetScore: 80 },
+          { trait: 'communication', importance: 6, targetScore: 70 }
+        ],
+        'designer': [
+          { trait: 'creativity', importance: 9, targetScore: 85 },
+          { trait: 'user focus', importance: 8, targetScore: 80 },
+          { trait: 'communication', importance: 7, targetScore: 75 },
+          { trait: 'visual thinking', importance: 9, targetScore: 85 },
+          { trait: 'attention to detail', importance: 7, targetScore: 75 },
+          { trait: 'collaboration', importance: 6, targetScore: 70 }
+        ],
+        'team lead': [
+          { trait: 'leadership', importance: 9, targetScore: 85 },
+          { trait: 'communication', importance: 9, targetScore: 85 },
+          { trait: 'decision making', importance: 8, targetScore: 80 },
+          { trait: 'delegation', importance: 7, targetScore: 75 },
+          { trait: 'mentoring', importance: 8, targetScore: 80 },
+          { trait: 'problem solving', importance: 7, targetScore: 75 }
+        ]
+      };
       
-      // Take one recommendation from each trait to create a balanced set
-      if (traitRecs.length > 0) {
-        allRecs.push(traitRecs[0]);
-      }
-    }
-    
-    // Ensure we have at least 3 recommendations
-    while (allRecs.length < 3) {
-      // Add more recommendations from available traits
-      for (const trait of traits) {
-        if (allRecs.length >= 5) break; // Cap at 5 recommendations
-        
-        const traitRecs = this.traitRecommendations[trait.name]?.['medium'] || 
-                        this.getGenericRecommendations(trait.name, 'medium');
-        
-        // Take additional recommendations if available
-        if (traitRecs.length > 1) {
-          allRecs.push(traitRecs[1]);
+      // Define development resources for different traits
+      const traitDevelopmentResources: Record<string, Array<{
+        type: string;
+        description: string;
+        url?: string;
+      }>> = {
+        'technical proficiency': [
+          { type: 'course', description: 'Advanced technical certification in your core technology' },
+          { type: 'practice', description: 'Build a complex project using advanced features' },
+          { type: 'community', description: 'Join technical communities and contribute to discussions' }
+        ],
+        'problem solving': [
+          { type: 'course', description: 'Problem-solving techniques and methodologies' },
+          { type: 'practice', description: 'Solve algorithmic challenges regularly' },
+          { type: 'book', description: 'Read "Thinking, Fast and Slow" by Daniel Kahneman' }
+        ],
+        'leadership': [
+          { type: 'course', description: 'Leadership development program' },
+          { type: 'mentor', description: 'Find a leadership mentor' },
+          { type: 'practice', description: 'Lead a small team or project initiative' }
+        ],
+        'communication': [
+          { type: 'course', description: 'Business communication skills' },
+          { type: 'practice', description: 'Create presentations and technical documentation' },
+          { type: 'workshop', description: 'Public speaking workshop' }
+        ],
+        'analytical thinking': [
+          { type: 'course', description: 'Data analysis fundamentals' },
+          { type: 'practice', description: 'Conduct analysis on real-world datasets' },
+          { type: 'book', description: 'Read "The Art of Thinking Clearly" by Rolf Dobelli' }
+        ],
+        'attention to detail': [
+          { type: 'practice', description: 'Quality assurance exercises' },
+          { type: 'technique', description: 'Implement checklists for important tasks' },
+          { type: 'habit', description: 'Practice regular code reviews and documentation audits' }
+        ],
+        'adaptability': [
+          { type: 'course', description: 'Change management skills' },
+          { type: 'practice', description: 'Learn a new technology or methodology' },
+          { type: 'habit', description: 'Regularly take on projects outside your comfort zone' }
+        ],
+        'collaboration': [
+          { type: 'workshop', description: 'Team dynamics and collaborative problem solving' },
+          { type: 'practice', description: 'Contribute to open-source projects' },
+          { type: 'technique', description: 'Facilitation and consensus-building skills' }
+        ],
+        'innovation': [
+          { type: 'course', description: 'Creative problem-solving techniques' },
+          { type: 'practice', description: 'Innovation workshops and ideation sessions' },
+          { type: 'book', description: 'Read "Where Good Ideas Come From" by Steven Johnson' }
+        ],
+        'strategic thinking': [
+          { type: 'course', description: 'Strategic planning and business strategy' },
+          { type: 'practice', description: 'Create a strategic plan for a project or initiative' },
+          { type: 'mentor', description: 'Find a mentor with strategic leadership experience' }
+        ]
+      };
+      
+      // Define development actions for different traits
+      const traitDevelopmentActions: Record<string, string[]> = {
+        'technical proficiency': [
+          'Complete one advanced technical course each quarter',
+          'Build a complex project using technologies you want to master',
+          'Teach others to solidify your understanding'
+        ],
+        'problem solving': [
+          'Practice algorithmic problem-solving regularly',
+          'Analyze past projects to identify alternative solutions',
+          'Mentor others on problem-solving approaches'
+        ],
+        'leadership': [
+          'Volunteer to lead small projects or initiatives',
+          'Seek feedback on your leadership approach',
+          'Study leadership styles and adapt them to your context'
+        ],
+        'communication': [
+          'Practice explaining complex concepts in simple terms',
+          'Request opportunities to present to teams or clients',
+          'Join a public speaking group like Toastmasters'
+        ],
+        'analytical thinking': [
+          'Break down complex problems into smaller components',
+          'Practice data analysis with real-world datasets',
+          'Implement structured analytical frameworks in your work'
+        ],
+        'attention to detail': [
+          'Implement personal review checklists',
+          'Set up automated quality checks where possible',
+          'Schedule dedicated review time for important deliverables'
+        ],
+        'adaptability': [
+          'Regularly learn new skills outside your core expertise',
+          'Volunteer for projects with unfamiliar elements',
+          'Practice responding constructively to unexpected changes'
+        ],
+        'collaboration': [
+          'Actively seek diverse perspectives on your projects',
+          'Practice active listening in team settings',
+          'Build relationships across different teams or departments'
+        ],
+        'innovation': [
+          'Schedule regular time for creative thinking',
+          'Implement an idea capture system',
+          'Prototype and test new ideas frequently'
+        ],
+        'strategic thinking': [
+          'Regularly connect your work to broader business goals',
+          'Analyze industry trends and their implications',
+          'Practice scenario planning for future challenges'
+        ]
+      };
+      
+      // Create a map of current trait scores
+      const currentTraits: Record<string, number> = {};
+      traits.forEach(trait => {
+        currentTraits[trait.name.toLowerCase()] = trait.score;
+      });
+      
+      // Determine target role trait profile
+      const targetRole = options.targetRole?.toLowerCase() || '';
+      let targetTraitProfile = roleTraitProfiles[targetRole];
+      
+      if (!targetTraitProfile && options.careerGoal) {
+        // Try to match career goal to a role
+        const careerGoal = options.careerGoal.toLowerCase();
+        for (const [role, profile] of Object.entries(roleTraitProfiles)) {
+          if (careerGoal.includes(role)) {
+            targetTraitProfile = profile;
+            break;
+          }
         }
       }
       
-      // If we still don't have enough, add generic cluster recommendations
-      if (allRecs.length < 3) {
-        allRecs.push(`Focus on developing ${traits.map(t => t.name).join(', ')} together as they reinforce each other`);
-        allRecs.push('Seek opportunities that allow you to practice multiple skills in this cluster simultaneously');
+      // If no specific target role, use a general development approach
+      if (!targetTraitProfile) {
+        // Create recommendations based on current trait scores
+        return traits
+          .filter(trait => trait.score < 70) // Focus on traits below 70
+          .map(trait => {
+            const traitName = trait.name.toLowerCase();
+            const resources = traitDevelopmentResources[traitName] || [
+              { type: 'general', description: 'Seek training and mentorship in this area' }
+            ];
+            
+            const actions = traitDevelopmentActions[traitName] || [
+              'Seek opportunities to practice this skill',
+              'Request feedback specifically about this trait',
+              'Set specific goals to improve this trait'
+            ];
+            
+            return {
+              trait: trait.name,
+              currentScore: trait.score,
+              recommendedScore: Math.min(100, trait.score + 15),
+              gap: 15,
+              developmentImportance: 5,
+              resources,
+              actions
+            };
+          })
+          .sort((a, b) => b.gap - a.gap);
       }
+      
+      // Generate development recommendations based on target role
+      const recommendations: Array<{
+        trait: string;
+        currentScore: number;
+        recommendedScore: number;
+        gap: number;
+        developmentImportance: number;
+        resources: Array<{
+          type: string;
+          description: string;
+          url?: string;
+        }>;
+        actions: string[];
+      }> = [];
+      
+      targetTraitProfile.forEach(targetTrait => {
+        const traitName = targetTrait.trait.toLowerCase();
+        const currentScore = currentTraits[traitName] || 0;
+        const gap = targetTrait.targetScore - currentScore;
+        
+        // Only include if there's a meaningful gap
+        if (gap > 5) {
+          const resources = traitDevelopmentResources[traitName] || [
+            { type: 'general', description: 'Seek training and mentorship in this area' }
+          ];
+          
+          const actions = traitDevelopmentActions[traitName] || [
+            'Seek opportunities to practice this skill',
+            'Request feedback specifically about this trait',
+            'Set specific goals to improve this trait'
+          ];
+          
+          recommendations.push({
+            trait: targetTrait.trait,
+            currentScore,
+            recommendedScore: targetTrait.targetScore,
+            gap,
+            developmentImportance: targetTrait.importance,
+            resources,
+            actions
+          });
+        }
+      });
+      
+      // Sort by development importance and gap
+      return recommendations.sort((a, b) => 
+        (b.developmentImportance * b.gap) - (a.developmentImportance * a.gap)
+      );
+    } catch (error) {
+      logger.error('Error generating skill development recommendations', { error });
+      return [];
     }
-    
-    return allRecs;
   }
 
   /**
-   * Tailor recommendations based on career goals
+   * Generate career path recommendations
+   * Suggests potential career paths based on trait strengths
    */
-  private tailorRecommendationsToCareerGoal(
-    recommendations: string[],
-    trait: string,
-    careerGoal: string
-  ): string[] {
-    // Clone the array to avoid modifying the original
-    const tailored = [...recommendations];
-    
-    // Customize based on career goal
-    const careerGoalLower = careerGoal.toLowerCase();
-    
-    // Add career-specific recommendation
-    if (careerGoalLower.includes('leadership') || careerGoalLower.includes('management')) {
-      tailored.unshift(`Focus on developing ${trait} specifically in leadership contexts`);
-    } else if (careerGoalLower.includes('technical') || careerGoalLower.includes('specialist')) {
-      tailored.unshift(`Apply ${trait} development to deepening technical expertise`);
-    } else if (careerGoalLower.includes('entrepreneur')) {
-      tailored.unshift(`Strengthen ${trait} with a focus on entrepreneurial applications`);
-    } else {
-      // Add a generic career-focused recommendation
-      tailored.unshift(`Develop ${trait} in alignment with your ${careerGoal} aspirations`);
+  generateCareerPathRecommendations(
+    traits: Trait[],
+    options?: {
+      currentRole?: string;
+      experience?: number; // years
+      industry?: string;
+      preferences?: string[];
     }
-    
-    return tailored.slice(0, 5); // Keep array size reasonable
-  }
-
-  /**
-   * Get related traits to a focus trait
-   */
-  private getRelatedTraits(traitName: string): string[] {
-    // Map of trait relationships for recommendations
-    const traitRelationships: Record<string, string[]> = {
-      'Leadership': ['Communication', 'Strategic Thinking', 'Initiative'],
-      'Analytical Thinking': ['Problem Solving', 'Systems Thinking'],
-      'Communication': ['Collaboration', 'Leadership'],
-      'Strategic Thinking': ['Systems Thinking', 'Analytical Thinking', 'Leadership'],
-      'Problem Solving': ['Analytical Thinking', 'Creative Thinking', 'Innovation'],
-      'Adaptability': ['Resilience', 'Innovation'],
-      'Resilience': ['Adaptability', 'Problem Solving'],
-      'Initiative': ['Leadership', 'Innovation'],
-      'Collaboration': ['Communication', 'Adaptability'],
-      'Creative Thinking': ['Problem Solving', 'Innovation'],
-      'Efficiency': ['Systems Thinking', 'Problem Solving'],
-      'Systems Thinking': ['Analytical Thinking', 'Strategic Thinking'],
-      'Innovation': ['Creative Thinking', 'Initiative', 'Problem Solving']
+  ): Array<{
+    path: string;
+    description: string;
+    matchScore: number;
+    keyTraits: Array<{
+      name: string;
+      importance: number;
+      userScore: number;
+    }>;
+    development: {
+      requiredTraits: string[];
+      timeline: string;
+      nextSteps: string[];
     };
-    
-    return traitRelationships[traitName] || [];
+  }> {
+    try {
+      logger.info('Generating career path recommendations', { options });
+      
+      if (!traits || traits.length === 0) {
+        logger.warn('No traits provided for career path recommendations');
+        return [];
+      }
+      
+      // Define career paths and their trait requirements
+      const careerPaths: Array<{
+        path: string;
+        description: string;
+        traitRequirements: Array<{
+          trait: string;
+          importance: number; // 1-10
+          minimumScore: number;
+        }>;
+        experience: {
+          min: number;
+          preferred: number;
+        };
+        development: {
+          requiredTraits: string[];
+          timeline: string;
+          nextSteps: string[];
+        };
+        industries?: string[];
+      }> = [
+        {
+          path: 'Technical Leadership',
+          description: 'Lead technical teams and projects, providing technical direction and mentoring',
+          traitRequirements: [
+            { trait: 'technical proficiency', importance: 9, minimumScore: 75 },
+            { trait: 'leadership', importance: 8, minimumScore: 70 },
+            { trait: 'communication', importance: 7, minimumScore: 65 },
+            { trait: 'mentoring', importance: 7, minimumScore: 65 },
+            { trait: 'strategic thinking', importance: 6, minimumScore: 60 }
+          ],
+          experience: { min: 3, preferred: 5 },
+          development: {
+            requiredTraits: ['decision making', 'delegation', 'strategic planning'],
+            timeline: '1-2 years depending on leadership experience',
+            nextSteps: [
+              'Take on technical lead role for small projects',
+              'Develop mentoring relationships with junior staff',
+              'Create architectural vision for a product or feature'
+            ]
+          }
+        },
+        {
+          path: 'Solutions Architecture',
+          description: 'Design and implement technical solutions that address complex business needs',
+          traitRequirements: [
+            { trait: 'systems thinking', importance: 9, minimumScore: 75 },
+            { trait: 'technical proficiency', importance: 8, minimumScore: 70 },
+            { trait: 'problem solving', importance: 8, minimumScore: 70 },
+            { trait: 'communication', importance: 7, minimumScore: 65 },
+            { trait: 'business acumen', importance: 6, minimumScore: 60 }
+          ],
+          experience: { min: 4, preferred: 7 },
+          development: {
+            requiredTraits: ['strategic thinking', 'stakeholder management', 'technical breadth'],
+            timeline: '1-3 years depending on architectural experience',
+            nextSteps: [
+              'Gain exposure to multiple technology domains',
+              'Practice solution design documentation',
+              'Develop understanding of business domain'
+            ]
+          }
+        },
+        {
+          path: 'Product Management',
+          description: 'Lead product development, working with customers and development teams to deliver value',
+          traitRequirements: [
+            { trait: 'strategic thinking', importance: 8, minimumScore: 70 },
+            { trait: 'communication', importance: 8, minimumScore: 70 },
+            { trait: 'user focus', importance: 8, minimumScore: 70 },
+            { trait: 'business acumen', importance: 7, minimumScore: 65 },
+            { trait: 'problem solving', importance: 7, minimumScore: 65 }
+          ],
+          experience: { min: 2, preferred: 5 },
+          development: {
+            requiredTraits: ['stakeholder management', 'prioritization', 'market awareness'],
+            timeline: '1-2 years depending on product experience',
+            nextSteps: [
+              'Take product ownership of a small feature',
+              'Develop user research skills',
+              'Practice creating product requirements documents'
+            ]
+          }
+        },
+        {
+          path: 'Data Science / AI',
+          description: 'Apply advanced analytics, statistical modeling, and machine learning to solve complex problems',
+          traitRequirements: [
+            { trait: 'analytical thinking', importance: 9, minimumScore: 75 },
+            { trait: 'technical proficiency', importance: 8, minimumScore: 70 },
+            { trait: 'problem solving', importance: 8, minimumScore: 70 },
+            { trait: 'attention to detail', importance: 7, minimumScore: 65 },
+            { trait: 'continuous learning', importance: 7, minimumScore: 65 }
+          ],
+          experience: { min: 1, preferred: 3 },
+          development: {
+            requiredTraits: ['statistical thinking', 'data literacy', 'research methodology'],
+            timeline: '1-2 years with focused study',
+            nextSteps: [
+              'Complete foundational courses in statistics and ML',
+              'Work on practical data science projects',
+              'Develop expertise in one or more ML frameworks'
+            ]
+          }
+        },
+        {
+          path: 'DevOps Engineering',
+          description: 'Build and maintain the infrastructure and deployment pipelines for software delivery',
+          traitRequirements: [
+            { trait: 'technical proficiency', importance: 8, minimumScore: 70 },
+            { trait: 'systems thinking', importance: 8, minimumScore: 70 },
+            { trait: 'automation focus', importance: 8, minimumScore: 70 },
+            { trait: 'problem solving', importance: 7, minimumScore: 65 },
+            { trait: 'reliability', importance: 7, minimumScore: 65 }
+          ],
+          experience: { min: 2, preferred: 4 },
+          development: {
+            requiredTraits: ['security awareness', 'scalability thinking', 'continuous improvement'],
+            timeline: '1-2 years with infrastructure focus',
+            nextSteps: [
+              'Learn major cloud platforms and services',
+              'Implement CI/CD pipelines for projects',
+              'Develop infrastructure-as-code skills'
+            ]
+          }
+        }
+      ];
+      
+      // Create trait score map for easy lookup
+      const traitScores: Record<string, number> = {};
+      traits.forEach(trait => {
+        traitScores[trait.name.toLowerCase()] = trait.score;
+      });
+      
+      // Calculate match scores for each career path
+      const recommendations = careerPaths.map(path => {
+        // Check industry match if specified
+        if (options?.industry && path.industries && 
+            !path.industries.some(i => i.toLowerCase() === options.industry?.toLowerCase())) {
+          // Skip paths that don't match the specified industry
+          return null;
+        }
+        
+        let totalWeightedScore = 0;
+        let totalWeight = 0;
+        let matchingTraits = 0;
+        
+        const keyTraits: Array<{
+          name: string;
+          importance: number;
+          userScore: number;
+        }> = [];
+        
+        // Calculate match score based on trait requirements
+        path.traitRequirements.forEach(req => {
+          const traitName = req.trait.toLowerCase();
+          const userScore = traitScores[traitName] || 0;
+          
+          keyTraits.push({
+            name: req.trait,
+            importance: req.importance,
+            userScore
+          });
+          
+          // Weight the score by trait importance
+          const weightedScore = userScore * req.importance;
+          totalWeightedScore += weightedScore;
+          totalWeight += req.importance * 100; // maximum possible score for this trait
+          
+          // Count traits that meet minimum requirements
+          if (userScore >= req.minimumScore) {
+            matchingTraits++;
+          }
+        });
+        
+        // Calculate match percentage
+        let matchScore = Math.round((totalWeightedScore / totalWeight) * 100);
+        
+        // Adjust for experience level
+        const userExperience = options?.experience || 0;
+        if (userExperience < path.experience.min) {
+          // Reduce match score if experience is below minimum
+          matchScore -= 10;
+        } else if (userExperience >= path.experience.preferred) {
+          // Boost match score if experience meets preferred level
+          matchScore += 5;
+        }
+        
+        // Adjust for preferences if specified
+        if (options?.preferences && options.preferences.length > 0) {
+          const pathLower = path.path.toLowerCase();
+          const descLower = path.description.toLowerCase();
+          
+          // Check if any preferences match the path
+          const matchingPreferences = options.preferences.filter(pref => {
+            const prefLower = pref.toLowerCase();
+            return pathLower.includes(prefLower) || descLower.includes(prefLower);
+          });
+          
+          // Boost score based on matching preferences
+          if (matchingPreferences.length > 0) {
+            matchScore += matchingPreferences.length * 5;
+          }
+        }
+        
+        // Cap match score at 100
+        matchScore = Math.min(100, Math.max(0, matchScore));
+        
+        return {
+          path: path.path,
+          description: path.description,
+          matchScore,
+          keyTraits,
+          development: path.development
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item)) // Remove null entries with type guard
+      .sort((a, b) => b.matchScore - a.matchScore); // Sort by match score
+      
+      // Return top recommendations
+      return recommendations.slice(0, 5);
+    } catch (error) {
+      logger.error('Error generating career path recommendations', { error });
+      return [];
+    }
   }
 
   /**
-   * Get generic recommendations when specific ones aren't available
+   * Generate communication style guidance
+   * Suggests communication approaches based on trait profile
    */
-  private getGenericRecommendations(traitName: string, gapLevel: 'large' | 'medium' | 'small'): string[] {
-    const intensity = gapLevel === 'large' ? 'significant' : 
-                      gapLevel === 'medium' ? 'moderate' : 'small';
-    
-    return [
-      `Work with a mentor or coach to develop a ${intensity} improvement plan for ${traitName}`,
-      `Read books and articles specifically focused on ${traitName} development`,
-      `Take a course or workshop designed to enhance ${traitName}`,
-      `Create practice opportunities in your current role to exercise ${traitName}`
-    ];
-  }
-
-  /**
-   * Get learning resources for a specific trait
-   */
-  private getTraitResources(traitName: string): string[] {
-    // Map of trait-specific resources
-    const traitResources: Record<string, string[]> = {
-      'Leadership': [
-        'Book: "Leadership: Theory and Practice" by Peter G. Northouse',
-        'Course: Harvard\'s "Leadership Principles" online certification',
-        'Podcast: "Leadership Today" for modern leadership insights',
-        'Organization: International Leadership Association for networking'
-      ],
-      'Analytical Thinking': [
-        'Book: "Super Thinking: The Big Book of Mental Models" by Gabriel Weinberg',
-        'Course: "Data Analysis and Critical Thinking" on Coursera',
-        'Tool: IBM\'s "Think Academy" free analytical thinking resources',
-        'Practice: LeetCode or HackerRank for structured analytical challenges'
-      ],
-      'Communication': [
-        'Book: "Crucial Conversations" by Patterson, Grenny, McMillan & Switzler',
-        'Organization: Toastmasters International for public speaking practice',
-        'Course: "Effective Communication" on LinkedIn Learning',
-        'Podcast: "The Communication Guys" for practical communication tips'
-      ],
-      'Strategic Thinking': [
-        'Book: "Good Strategy/Bad Strategy" by Richard Rumelt',
-        'Course: Wharton\'s "Strategic Management" on Coursera',
-        'Framework: "Playing to Win" strategic framework by A.G. Lafley',
-        'Practice: Regular scenario planning exercises'
-      ],
-      'Problem Solving': [
-        'Book: "Bulletproof Problem Solving" by Charles Conn and Robert McLean',
-        'Course: "Creative Problem Solving" on edX',
-        'Framework: TRIZ methodology for systematic innovation',
-        'Tool: Mind mapping software for problem decomposition'
-      ],
-      'Adaptability': [
-        'Book: "Adaptability: The Art of Winning in an Age of Uncertainty" by Max McKeown',
-        'Course: "Developing Adaptability" on LinkedIn Learning',
-        'Practice: Deliberate exposure to new situations outside comfort zone',
-        'Assessment: Adaptability Quotient (AQ) test for baseline measurement'
-      ],
-      'Resilience': [
-        'Book: "Resilience: Hard-Won Wisdom for Living a Better Life" by Eric Greitens',
-        'Course: "Resilience Skills" on Coursera by University of Pennsylvania',
-        'App: Headspace or Calm for mindfulness practice',
-        'Framework: The American Psychological Association\'s resilience toolkit'
-      ],
-      'Initiative': [
-        'Book: "The Art of Taking Action" by Gregg Krech',
-        'Course: "Personal Initiative: An Active Approach to Work" on Coursera',
-        'Practice: 30-day challenge to propose one new idea daily',
-        'Tool: Action-oriented planning systems like Getting Things Done (GTD)'
-      ],
-      'Collaboration': [
-        'Book: "Collaborative Intelligence" by Dawna Markova and Angie McArthur',
-        'Course: "Collaborative Leadership and Emotional Intelligence" on edX',
-        'Tool: Collaboration platforms like Miro or Figma for team projects',
-        'Framework: Team Canvas for team alignment and collaboration'
-      ],
-      'Creative Thinking': [
-        'Book: "Creative Confidence" by Tom and David Kelley',
-        'Course: IDEO\'s "Foundations in Creative Problem Solving"',
-        'Practice: Daily creative exercises like "30 Circles Challenge"',
-        'Tool: SCAMPER technique for systematic creative thinking'
-      ],
-      'Efficiency': [
-        'Book: "The Effective Executive" by Peter Drucker',
-        'Course: "Work Smarter, Not Harder: Time Management" on LinkedIn Learning',
-        'Tool: Pomodoro Technique and time tracking apps',
-        'Framework: Personal Kanban for workflow management'
-      ],
-      'Systems Thinking': [
-        'Book: "Thinking in Systems: A Primer" by Donella Meadows',
-        'Course: MIT\'s "System Dynamics for Business Policy" online',
-        'Tool: Kumu or Loopy for systems mapping',
-        'Organization: Systems Thinking Community of Practice'
-      ],
-      'Innovation': [
-        'Book: "The Innovator\'s Dilemma" by Clayton Christensen',
-        'Course: "Innovation and Design for Global Grand Challenges" on Coursera',
-        'Framework: Design Thinking methodology by Stanford d.school',
-        'Community: Join innovation challenges on platforms like OpenIDEO'
-      ]
-    };
-    
-    return traitResources[traitName] || [
-      `Book recommendations on ${traitName}`,
-      `Online courses related to ${traitName}`,
-      `Communities of practice for ${traitName}`,
-      `Tools and frameworks for developing ${traitName}`
-    ];
+  generateCommunicationStyleGuidance(
+    traits: Trait[],
+    options?: {
+      audience?: string;
+      context?: string;
+    }
+  ): {
+    overallStyle: string;
+    strengths: string[];
+    suggestions: Array<{
+      aspect: string;
+      guidance: string;
+      priority: number;
+    }>;
+    audienceSpecific?: Array<{
+      audience: string;
+      recommendations: string[];
+    }>;
+  } {
+    try {
+      logger.info('Generating communication style guidance', { options });
+      
+      if (!traits || traits.length === 0) {
+        logger.warn('No traits provided for communication guidance');
+        return {
+          overallStyle: 'Balanced communication',
+          strengths: ['General communication skills'],
+          suggestions: [{
+            aspect: 'General communication',
+            guidance: 'Develop a clear communication style appropriate to your context',
+            priority: 5
+          }]
+        };
+      }
+      
+      // Create trait score map for easy lookup
+      const traitScores: Record<string, number> = {};
+      traits.forEach(trait => {
+        traitScores[trait.name.toLowerCase()] = trait.score;
+      });
+      
+      // Communication-related traits
+      const communicationTraits = [
+        'communication',
+        'empathy',
+        'persuasion',
+        'negotiation',
+        'listening',
+        'clarity',
+        'presentation',
+        'storytelling',
+        'writing',
+        'emotional intelligence'
+      ];
+      
+      // Define communication styles based on trait combinations
+      const determineStyle = (): string => {
+        const analytical = traitScores['analytical thinking'] || 0;
+        const empathy = traitScores['empathy'] || 0;
+        const leadership = traitScores['leadership'] || 0;
+        const detail = traitScores['attention to detail'] || 0;
+        const innovation = traitScores['innovation'] || 0;
+        const communication = traitScores['communication'] || 0;
+        
+        if (analytical > 75 && detail > 70) {
+          return 'Precise and data-driven communicator';
+        } else if (empathy > 75 && communication > 70) {
+          return 'Empathetic and connective communicator';
+        } else if (leadership > 75 && (traitScores['persuasion'] || 0) > 70) {
+          return 'Confident and persuasive communicator';
+        } else if (innovation > 75 && communication > 70) {
+          return 'Creative and engaging communicator';
+        } else if (analytical > 70 && communication < 60) {
+          return 'Analytical communicator who may benefit from more engagement';
+        } else if (communication > 75) {
+          return 'Skilled all-around communicator';
+        } else {
+          return 'Balanced communicator with mixed strengths';
+        }
+      };
+      
+      // Determine communication strengths
+      const determineStrengths = (): string[] => {
+        const strengths: string[] = [];
+        
+        if ((traitScores['communication'] || 0) > 70) {
+          strengths.push('Strong general communication skills');
+        }
+        
+        if ((traitScores['empathy'] || 0) > 70) {
+          strengths.push('Ability to understand and connect with others');
+        }
+        
+        if ((traitScores['persuasion'] || 0) > 70) {
+          strengths.push('Effective at persuasive communication');
+        }
+        
+        if ((traitScores['analytical thinking'] || 0) > 70 && (traitScores['communication'] || 0) > 60) {
+          strengths.push('Clear presentation of complex information');
+        }
+        
+        if ((traitScores['storytelling'] || 0) > 70 || (traitScores['creativity'] || 0) > 75) {
+          strengths.push('Engaging narrative communication style');
+        }
+        
+        if ((traitScores['listening'] || 0) > 70) {
+          strengths.push('Strong active listening skills');
+        }
+        
+        if ((traitScores['writing'] || 0) > 70) {
+          strengths.push('Effective written communication');
+        }
+        
+        // Default if no specific strengths found
+        if (strengths.length === 0) {
+          strengths.push('Balanced communication approach');
+        }
+        
+        return strengths;
+      };
+      
+      // Generate communication suggestions
+      const generateSuggestions = (): Array<{
+        aspect: string;
+        guidance: string;
+        priority: number;
+      }> => {
+        const suggestions: Array<{
+          aspect: string;
+          guidance: string;
+          priority: number;
+        }> = [];
+        
+        // Check for gaps and opportunities
+        const communication = traitScores['communication'] || 50;
+        const listening = traitScores['listening'] || communication - 10;
+        const empathy = traitScores['empathy'] || 50;
+        const persuasion = traitScores['persuasion'] || 50;
+        const analytical = traitScores['analytical thinking'] || 50;
+        const organization = traitScores['organization'] || 50;
+        
+        if (communication < 70) {
+          suggestions.push({
+            aspect: 'General Communication',
+            guidance: 'Focus on developing clear and concise communication skills through practice and feedback',
+            priority: 9
+          });
+        }
+        
+        if (listening < 70) {
+          suggestions.push({
+            aspect: 'Active Listening',
+            guidance: 'Practice active listening by focusing fully on speakers, asking clarifying questions, and summarizing to confirm understanding',
+            priority: 8
+          });
+        }
+        
+        if (empathy < 70 && options?.audience) {
+          suggestions.push({
+            aspect: 'Audience Awareness',
+            guidance: 'Before communicating, consider your audience\'s perspective, knowledge level, and needs',
+            priority: 8
+          });
+        }
+        
+        if (analytical > 75 && empathy < 65) {
+          suggestions.push({
+            aspect: 'Technical Translation',
+            guidance: 'When discussing technical topics, translate complex concepts into accessible language for non-technical stakeholders',
+            priority: 7
+          });
+        }
+        
+        if (persuasion < 65 && options?.context === 'leadership') {
+          suggestions.push({
+            aspect: 'Persuasive Communication',
+            guidance: 'Enhance your ability to influence by connecting ideas to audience values and providing clear benefits',
+            priority: 7
+          });
+        }
+        
+        if (organization < 65) {
+          suggestions.push({
+            aspect: 'Structured Communication',
+            guidance: 'Use frameworks like STAR (Situation, Task, Action, Result) to organize your messages more effectively',
+            priority: 6
+          });
+        }
+        
+        // Add general improvement suggestion if few specific ones
+        if (suggestions.length < 2) {
+          suggestions.push({
+            aspect: 'Communication Versatility',
+            guidance: 'Develop versatility in your communication style to adapt to different audiences and contexts',
+            priority: 5
+          });
+        }
+        
+        return suggestions.sort((a, b) => b.priority - a.priority);
+      };
+      
+      // Generate audience-specific recommendations if audience is provided
+      const generateAudienceRecommendations = (): Array<{
+        audience: string;
+        recommendations: string[];
+      }> | undefined => {
+        if (!options?.audience) return undefined;
+        
+        const audienceMap: Record<string, Array<string>> = {
+          'technical': [
+            'Focus on precision and accuracy in your communication',
+            'Provide sufficient technical detail while avoiding unnecessary complexity',
+            'Use data and evidence to support your points'
+          ],
+          'executive': [
+            'Focus on business impact and strategic relevance',
+            'Be concise and get to the key points quickly',
+            'Connect technical details to business outcomes'
+          ],
+          'client': [
+            'Emphasize value and benefits rather than technical features',
+            'Use clear language, avoiding jargon and acronyms',
+            'Listen closely to understand their specific needs and concerns'
+          ],
+          'team': [
+            'Balance clarity and detail in your communication',
+            'Create space for questions and discussion',
+            'Be transparent about challenges and limitations'
+          ]
+        };
+        
+        const audience = options.audience.toLowerCase();
+        let audienceType: string | undefined;
+        
+        for (const type of Object.keys(audienceMap)) {
+          if (audience.includes(type)) {
+            audienceType = type;
+            break;
+          }
+        }
+        
+        if (!audienceType) {
+          return [{
+            audience: options.audience,
+            recommendations: [
+              'Adapt your communication style to match their level of technical understanding',
+              'Ask questions to ensure your message is being understood as intended',
+              'Balance detail with clarity based on their needs'
+            ]
+          }];
+        }
+        
+        return [{
+          audience: audienceType,
+          recommendations: audienceMap[audienceType]
+        }];
+      };
+      
+      // Generate the overall response
+      return {
+        overallStyle: determineStyle(),
+        strengths: determineStrengths(),
+        suggestions: generateSuggestions(),
+        audienceSpecific: generateAudienceRecommendations()
+      };
+    } catch (error) {
+      logger.error('Error generating communication style guidance', { error });
+      return {
+        overallStyle: 'Error determining communication style',
+        strengths: [],
+        suggestions: [{
+          aspect: 'General communication',
+          guidance: 'Work on developing clear and effective communication',
+          priority: 5
+        }]
+      };
+    }
   }
 }

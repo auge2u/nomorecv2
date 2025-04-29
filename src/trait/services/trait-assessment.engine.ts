@@ -1,1382 +1,931 @@
-import logger from '../../logger';
-import { AppError } from '../../error.middleware';
+import logger from '../../utils/logger';
+import { TraitContentAnalyzer } from './trait-content-analyzer';
+import { TraitDataRepository } from './trait-data.repository';
 import { Trait } from '../models/trait.model';
 
 /**
- * Engine for trait assessment and scoring
- * Analyzes profile data to derive trait scores
+ * Trait Assessment Engine
+ * Core system for assessing and calculating professional traits
  */
 export class TraitAssessmentEngine {
-  /**
-   * Calculate adaptability score based on profile data
-   */
-  calculateAdaptabilityScore(experiences: any[], skills: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Consider diversity of industries and roles
-      const industries = new Set(experiences.map(exp => {
-        // Extract industry from experience data
-        return exp.industry || '';
-      }).filter(Boolean));
-      
-      const roles = new Set(experiences.map(exp => {
-        return exp.title || '';
-      }).filter(Boolean));
-      
-      // Calculate base score from number of different roles and industries
-      if (industries.size >= 3) score += 25;
-      else if (industries.size >= 2) score += 15;
-      else if (industries.size >= 1) score += 10;
-      maxPossibleScore += 25;
-      
-      if (roles.size >= 4) score += 25;
-      else if (roles.size >= 3) score += 20;
-      else if (roles.size >= 2) score += 15;
-      else if (roles.size >= 1) score += 10;
-      maxPossibleScore += 25;
-      
-      // Check for adaptability-related skills
-      const adaptabilitySkills = [
-        'adaptability',
-        'flexibility',
-        'change management',
-        'agile',
-        'cross-functional',
-        'versatile',
-        'adaptable',
-        'pivot'
-      ];
-      
-      // Calculate skill score
-      const skillScore = this.calculateSkillsScore(skills, adaptabilitySkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Check for adaptability in projects
-      const adaptabilityKeywords = [
-        'adapt',
-        'flexibility',
-        'pivot',
-        'change',
-        'agile',
-        'responsive',
-        'evolve'
-      ];
-      
-      let projectAdaptabilityScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        for (const keyword of adaptabilityKeywords) {
-          if (desc.includes(keyword)) {
-            projectAdaptabilityScore += 5;
-            break;
-          }
-        }
-      }
-      projectAdaptabilityScore = Math.min(projectAdaptabilityScore, 25);
-      score += projectAdaptabilityScore;
-      maxPossibleScore += 25;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating adaptability score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
+  constructor(
+    private contentAnalyzer: TraitContentAnalyzer,
+    private dataRepository: TraitDataRepository
+  ) {}
 
   /**
-   * Calculate communication score based on profile data
+   * Perform direct trait assessment from questionnaire responses
    */
-  calculateCommunicationScore(experiences: any[], skills: any[], projects: any[]): number {
+  async performDirectAssessment(
+    profileId: string,
+    responses: Array<{
+      questionId: string;
+      response: number | string;
+      traits: Array<{
+        name: string;
+        category: string;
+        weight: number;
+      }>;
+    }>
+  ): Promise<Trait[]> {
     try {
-      let score = 0;
-      let maxPossibleScore = 0;
+      logger.info('Performing direct trait assessment', { profileId });
       
-      // Check for communication-related roles or responsibilities
-      const communicationRoles = [
-        'manager',
-        'leader',
-        'presenter',
-        'speaker',
-        'trainer',
-        'consultant',
-        'coordinator',
-        'liaison'
-      ];
+      // Process and aggregate responses by trait
+      const traitScores: Record<string, {
+        name: string;
+        category: string;
+        totalScore: number;
+        weightSum: number;
+        responses: Array<{
+          questionId: string;
+          response: number | string;
+          weight: number;
+        }>;
+      }> = {};
       
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
+      // Process each response
+      responses.forEach(response => {
+        // Handle numeric responses
+        const numericValue = typeof response.response === 'number' 
+          ? response.response 
+          : this.convertResponseToNumeric(response.response);
         
-        // Check for communication roles in title
-        for (const role of communicationRoles) {
-          if (title.includes(role)) {
-            score += 10;
-            break;
-          }
-        }
-        
-        // Check for communication keywords in description
-        const commKeywords = [
-          'communicate',
-          'communication',
-          'present',
-          'presentation',
-          'report',
-          'document',
-          'write',
-          'wrote',
-          'explain',
-          'articulate',
-          'negotiate'
-        ];
-        
-        let keywordsFound = 0;
-        for (const keyword of commKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        score += Math.min(15, keywordsFound * 3);
-      }
-      
-      score = Math.min(score, 50);
-      maxPossibleScore += 50;
-      
-      // Check for communication skills
-      const communicationSkills = [
-        'communication',
-        'presentation',
-        'public speaking',
-        'writing',
-        'technical writing',
-        'documentation',
-        'reporting',
-        'negotiation'
-      ];
-      
-      const skillScore = this.calculateSkillsScore(skills, communicationSkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating communication score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate strategic thinking score based on profile data
-   */
-  calculateStrategicThinkingScore(experiences: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Check for strategic roles
-      const strategicRoles = [
-        'strategist',
-        'director',
-        'manager',
-        'lead',
-        'vp',
-        'head',
-        'chief',
-        'president',
-        'founder',
-        'partner'
-      ];
-      
-      // Strategic keywords to look for
-      const strategicKeywords = [
-        'strategy',
-        'strategic',
-        'vision',
-        'long-term',
-        'growth',
-        'planning',
-        'roadmap',
-        'forecast',
-        'analyze',
-        'analysis',
-        'trends',
-        'direction',
-        'future',
-        'goal',
-        'objective',
-        'kpi',
-        'metrics'
-      ];
-      
-      // Check experiences for strategic roles and keywords
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for strategic roles in title
-        for (const role of strategicRoles) {
-          if (title.includes(role)) {
-            score += 10;
-            break;
-          }
-        }
-        
-        // Check for strategic keywords in description
-        let keywordsFound = 0;
-        for (const keyword of strategicKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        score += Math.min(20, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 50);
-      maxPossibleScore += 50;
-      
-      // Check projects for strategic elements
-      let projectScore = 0;
-      for (const project of projects) {
-        const title = (project.name || '').toLowerCase();
-        const desc = (project.description || '').toLowerCase();
-        
-        // Higher score for projects that mention strategy or planning
-        let projectStrategicScore = 0;
-        
-        for (const keyword of strategicKeywords) {
-          if (title.includes(keyword) || desc.includes(keyword)) {
-            projectStrategicScore += 5;
-          }
-        }
-        
-        projectScore += Math.min(10, projectStrategicScore);
-      }
-      
-      projectScore = Math.min(projectScore, 30);
-      score += projectScore;
-      maxPossibleScore += 30;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating strategic thinking score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate leadership score based on profile data
-   */
-  calculateLeadershipScore(experiences: any[], skills: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Check for leadership roles
-      const leadershipRoles = [
-        'manager',
-        'director',
-        'lead',
-        'chief',
-        'head',
-        'vp',
-        'president',
-        'executive',
-        'founder',
-        'chair',
-        'supervisor',
-        'principal'
-      ];
-      
-      // Leadership keywords
-      const leadershipKeywords = [
-        'lead',
-        'manage',
-        'direct',
-        'oversee',
-        'supervise',
-        'spearhead',
-        'coordinate',
-        'guide',
-        'mentor',
-        'coach',
-        'team'
-      ];
-      
-      // Check experiences for leadership roles and keywords
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for leadership roles in title
-        for (const role of leadershipRoles) {
-          if (title.includes(role)) {
-            score += 15;
-            break;
-          }
-        }
-        
-        // Check for team size mentions
-        const teamSizeMatches = desc.match(/team of (\d+)|(\d+)[- ]person team|managing (\d+)|leading (\d+)/gi);
-        if (teamSizeMatches) {
-          // Extract numbers from the matches
-          const numbers = teamSizeMatches.map(match => {
-            const num = match.match(/\d+/);
-            return num ? parseInt(num[0]) : 0;
-          });
+        // Update scores for each associated trait
+        response.traits.forEach(trait => {
+          const key = `${trait.name}:${trait.category}`;
           
-          // Add points based on maximum team size
-          const maxTeamSize = Math.max(...numbers, 0);
-          if (maxTeamSize >= 10) score += 15;
-          else if (maxTeamSize >= 5) score += 10;
-          else if (maxTeamSize >= 2) score += 5;
-        }
-        
-        // Check for leadership keywords in description
-        let keywordsFound = 0;
-        for (const keyword of leadershipKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        score += Math.min(15, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 60);
-      maxPossibleScore += 60;
-      
-      // Check for leadership skills
-      const leadershipSkills = [
-        'leadership',
-        'management',
-        'team building',
-        'mentoring',
-        'coaching',
-        'delegation',
-        'motivation',
-        'team management',
-        'supervision'
-      ];
-      
-      const skillScore = this.calculateSkillsScore(skills, leadershipSkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Check projects for leadership elements
-      let projectLeadershipScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        
-        // Check for leadership keywords
-        let projectKeywordsFound = 0;
-        for (const keyword of leadershipKeywords) {
-          if (desc.includes(keyword)) {
-            projectKeywordsFound++;
-          }
-        }
-        
-        projectLeadershipScore += Math.min(5, projectKeywordsFound);
-      }
-      
-      projectLeadershipScore = Math.min(projectLeadershipScore, 15);
-      score += projectLeadershipScore;
-      maxPossibleScore += 15;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating leadership score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate analytical thinking score based on profile data
-   */
-  calculateAnalyticalThinkingScore(experiences: any[], skills: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Check for analytical roles
-      const analyticalRoles = [
-        'analyst',
-        'researcher',
-        'scientist',
-        'engineer',
-        'data',
-        'statistician',
-        'quant',
-        'developer'
-      ];
-      
-      // Analytical keywords
-      const analyticalKeywords = [
-        'analyze',
-        'analysis',
-        'research',
-        'data',
-        'metrics',
-        'statistics',
-        'quantitative',
-        'problem solving',
-        'critical thinking',
-        'evaluation',
-        'assessment',
-        'investigate',
-        'logical'
-      ];
-      
-      // Check experiences for analytical roles and keywords
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for analytical roles in title
-        for (const role of analyticalRoles) {
-          if (title.includes(role)) {
-            score += 15;
-            break;
-          }
-        }
-        
-        // Check for analytical keywords in description
-        let keywordsFound = 0;
-        for (const keyword of analyticalKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        score += Math.min(15, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 50);
-      maxPossibleScore += 50;
-      
-      // Check for analytical skills
-      const analyticalSkills = [
-        'analytical',
-        'analysis',
-        'data analysis',
-        'research',
-        'statistics',
-        'quantitative',
-        'critical thinking',
-        'problem solving',
-        'sql',
-        'python',
-        'r',
-        'mathematics'
-      ];
-      
-      const skillScore = this.calculateSkillsScore(skills, analyticalSkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Check projects for analytical elements
-      let projectAnalyticalScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        
-        // Check for analytical keywords
-        let projectKeywordsFound = 0;
-        for (const keyword of analyticalKeywords) {
-          if (desc.includes(keyword)) {
-            projectKeywordsFound++;
-          }
-        }
-        
-        projectAnalyticalScore += Math.min(7, projectKeywordsFound);
-      }
-      
-      projectAnalyticalScore = Math.min(projectAnalyticalScore, 20);
-      score += projectAnalyticalScore;
-      maxPossibleScore += 20;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating analytical thinking score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate systems thinking score based on profile data
-   */
-  calculateSystemsThinkingScore(experiences: any[], projects: any[], skills: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Check for systems thinking roles
-      const systemsRoles = [
-        'architect',
-        'systems',
-        'infrastructure',
-        'solution',
-        'enterprise',
-        'platform',
-        'integration',
-        'devops',
-        'sre'
-      ];
-      
-      // Systems thinking keywords
-      const systemsKeywords = [
-        'system',
-        'integration',
-        'architecture',
-        'ecosystem',
-        'infrastructure',
-        'platform',
-        'framework',
-        'holistic',
-        'interconnect',
-        'interdependent',
-        'environment',
-        'dependency',
-        'lifecycle'
-      ];
-      
-      // Check experiences for systems thinking roles and keywords
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for systems roles in title
-        for (const role of systemsRoles) {
-          if (title.includes(role)) {
-            score += 15;
-            break;
-          }
-        }
-        
-        // Check for systems thinking keywords in description
-        let keywordsFound = 0;
-        for (const keyword of systemsKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        score += Math.min(15, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 40);
-      maxPossibleScore += 40;
-      
-      // Check projects for systems thinking elements
-      let projectSystemsScore = 0;
-      for (const project of projects) {
-        const title = (project.name || '').toLowerCase();
-        const desc = (project.description || '').toLowerCase();
-        
-        // Higher score for projects that mention systems or architecture
-        let projectSystemsPoints = 0;
-        
-        // Check title for systems keywords
-        for (const keyword of systemsRoles.concat(systemsKeywords)) {
-          if (title.includes(keyword)) {
-            projectSystemsPoints += 5;
-          }
-        }
-        
-        // Check description for systems keywords
-        for (const keyword of systemsKeywords) {
-          if (desc.includes(keyword)) {
-            projectSystemsPoints += 3;
-          }
-        }
-        
-        projectSystemsScore += Math.min(15, projectSystemsPoints);
-      }
-      
-      projectSystemsScore = Math.min(projectSystemsScore, 40);
-      score += projectSystemsScore;
-      maxPossibleScore += 40;
-      
-      // Check for systems thinking related skills
-      const systemsSkills = [
-        'systems thinking',
-        'architecture',
-        'system design',
-        'integration',
-        'systems analysis',
-        'enterprise architecture',
-        'solution architecture',
-        'infrastructure',
-        'devops',
-        'platform engineering'
-      ];
-      
-      const skillScore = this.calculateSkillsScore(skills, systemsSkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating systems thinking score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate creative thinking score based on profile data
-   */
-  calculateCreativeThinkingScore(projects: any[], experiences: any[], skills: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Check for creative roles
-      const creativeRoles = [
-        'designer',
-        'creative',
-        'artist',
-        'writer',
-        'content',
-        'ux',
-        'ui',
-        'innovation',
-        'product'
-      ];
-      
-      // Creative keywords
-      const creativeKeywords = [
-        'create',
-        'design',
-        'innovate',
-        'develop',
-        'novel',
-        'unique',
-        'original',
-        'imagination',
-        'innovative',
-        'creativity',
-        'brainstorm',
-        'ideate',
-        'prototype',
-        'concept'
-      ];
-      
-      // Check projects for creative elements (weigh projects more heavily for creativity)
-      let projectCreativeScore = 0;
-      for (const project of projects) {
-        const title = (project.name || '').toLowerCase();
-        const desc = (project.description || '').toLowerCase();
-        
-        // Points for creative keywords in title
-        for (const keyword of creativeRoles.concat(creativeKeywords)) {
-          if (title.includes(keyword)) {
-            projectCreativeScore += 5;
-            break;
-          }
-        }
-        
-        // Points for creative keywords in description
-        let keywordsFound = 0;
-        for (const keyword of creativeKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        projectCreativeScore += Math.min(10, keywordsFound * 2);
-      }
-      
-      projectCreativeScore = Math.min(projectCreativeScore, 40);
-      score += projectCreativeScore;
-      maxPossibleScore += 40;
-      
-      // Check experiences for creative roles and keywords
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for creative roles in title
-        for (const role of creativeRoles) {
-          if (title.includes(role)) {
-            score += 10;
-            break;
-          }
-        }
-        
-        // Check for creative keywords in description
-        let keywordsFound = 0;
-        for (const keyword of creativeKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        score += Math.min(10, keywordsFound * 2);
-      }
-      
-      score = Math.min(score + projectCreativeScore, 60);
-      maxPossibleScore += 30;
-      
-      // Check for creative skills
-      const creativeSkills = [
-        'creativity',
-        'innovation',
-        'design thinking',
-        'creative problem solving',
-        'ideation',
-        'design',
-        'ui design',
-        'ux design',
-        'content creation',
-        'writing',
-        'storytelling'
-      ];
-      
-      const skillScore = this.calculateSkillsScore(skills, creativeSkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating creative thinking score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate problem solving score based on profile data
-   */
-  calculateProblemSolvingScore(projects: any[], experiences: any[], skills: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Problem solving keywords
-      const problemSolvingKeywords = [
-        'solve',
-        'solution',
-        'problem',
-        'resolve',
-        'troubleshoot',
-        'debug',
-        'fix',
-        'address',
-        'overcome',
-        'challenge',
-        'improve',
-        'optimize',
-        'enhance'
-      ];
-      
-      // Check experiences for problem solving indicators
-      for (const experience of experiences) {
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for problem solving keywords
-        let keywordsFound = 0;
-        for (const keyword of problemSolvingKeywords) {
-          const regex = new RegExp(`\\b${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          if (matches.length > 0) {
-            keywordsFound += matches.length;
-          }
-        }
-        
-        // Look for specific achievements that indicate problem solving
-        if (desc.includes('reduced') || desc.includes('increased') || 
-            desc.includes('improved') || desc.includes('optimized')) {
-          keywordsFound += 2;
-        }
-        
-        // Calculate a problem-solving score for this experience
-        score += Math.min(15, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 40);
-      maxPossibleScore += 40;
-      
-      // Check projects for problem solving elements
-      let projectProblemSolvingScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        
-        // Check for problem solving keywords
-        let keywordsFound = 0;
-        for (const keyword of problemSolvingKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        // If project specifically mentions solving a problem, add more points
-        if (desc.includes('solve') && desc.includes('problem')) {
-          keywordsFound += 3;
-        }
-        
-        projectProblemSolvingScore += Math.min(10, keywordsFound * 2);
-      }
-      
-      projectProblemSolvingScore = Math.min(projectProblemSolvingScore, 30);
-      score += projectProblemSolvingScore;
-      maxPossibleScore += 30;
-      
-      // Check for problem solving skills
-      const problemSolvingSkills = [
-        'problem solving',
-        'critical thinking',
-        'analytical thinking',
-        'troubleshooting',
-        'debugging',
-        'root cause analysis',
-        'decision making',
-        'conflict resolution'
-      ];
-      
-      const skillScore = this.calculateSkillsScore(skills, problemSolvingSkills);
-      score += skillScore.score;
-      maxPossibleScore += skillScore.maxPossible;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating problem solving score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate initiative score based on profile data
-   */
-  calculateInitiativeScore(experiences: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Initiative keywords
-      const initiativeKeywords = [
-        'initiate',
-        'launch',
-        'create',
-        'establish',
-        'found',
-        'start',
-        'spearhead',
-        'lead',
-        'pioneer',
-        'develop',
-        'implement',
-        'introduce'
-      ];
-      
-      // Check experiences for initiative indicators
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for founder/creator roles
-        if (title.includes('founder') || title.includes('creator') || 
-            title.includes('entrepreneur') || title.includes('owner')) {
-          score += 20;
-        }
-        
-        // Check for initiative keywords at the beginning of sentences
-        let keywordsFound = 0;
-        for (const keyword of initiativeKeywords) {
-          const regex = new RegExp(`(^|\\.|\\n)\\s*${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          if (matches.length > 0) {
-            keywordsFound += matches.length;
-          }
-        }
-        
-        score += Math.min(20, keywordsFound * 3);
-      }
-      
-      score = Math.min(score, 50);
-      maxPossibleScore += 50;
-      
-      // Check projects for initiative
-      let projectInitiativeScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        
-        // Points for self-initiated/personal projects
-        if (desc.includes('personal project') || desc.includes('side project') || 
-            desc.includes('own project') || desc.includes('individual project') ||
-            desc.includes('initiated') || desc.includes('self-directed')) {
-          projectInitiativeScore += 10;
-        }
-        
-        // Look for initiative-related keywords at beginning of sentences
-        let keywordsFound = 0;
-        for (const keyword of initiativeKeywords) {
-          const regex = new RegExp(`(^|\\.|\\n)\\s*${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          if (matches.length > 0) {
-            keywordsFound += matches.length;
-          }
-        }
-        
-        projectInitiativeScore += Math.min(10, keywordsFound * 2);
-      }
-      
-      projectInitiativeScore = Math.min(projectInitiativeScore, 50);
-      score += projectInitiativeScore;
-      maxPossibleScore += 50;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating initiative score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate efficiency score based on profile data
-   */
-  calculateEfficiencyScore(experiences: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Efficiency keywords
-      const efficiencyKeywords = [
-        'efficien',
-        'optimize',
-        'streamline',
-        'automate',
-        'improve',
-        'reduce time',
-        'reduce cost',
-        'increase productivity',
-        'accelerate',
-        'expedite',
-        'speed up',
-        'time-saving',
-        'lean',
-        'agile'
-      ];
-      
-      // Quantitative improvement indicators
-      const regex = /reduced.+?(\d+%|by \d+)/gi;
-      const timeRegex = /reduced time.+?(\d+%|by \d+)/gi;
-      const costRegex = /reduced cost.+?(\d+%|by \d+)/gi;
-      const increaseRegex = /increased.+?(\d+%|by \d+)/gi;
-      
-      // Check experiences for efficiency indicators
-      for (const experience of experiences) {
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for efficiency keywords
-        let keywordsFound = 0;
-        for (const keyword of efficiencyKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        // Extra points for quantitative improvements
-        const reductions = desc.match(regex) || [];
-        const timeReductions = desc.match(timeRegex) || [];
-        const costReductions = desc.match(costRegex) || [];
-        const increases = desc.match(increaseRegex) || [];
-        
-        keywordsFound += reductions.length * 2;
-        keywordsFound += timeReductions.length * 2; // Count these twice as they're already counted in reductions
-        keywordsFound += costReductions.length * 2; // Count these twice as they're already counted in reductions
-        keywordsFound += increases.length;
-        
-        score += Math.min(20, keywordsFound * 3);
-      }
-      
-      score = Math.min(score, 60);
-      maxPossibleScore += 60;
-      
-      // Check projects for efficiency elements
-      let projectEfficiencyScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        
-        // Check for efficiency keywords
-        let keywordsFound = 0;
-        for (const keyword of efficiencyKeywords) {
-          if (desc.includes(keyword)) {
-            keywordsFound++;
-          }
-        }
-        
-        // Extra points for quantitative improvements
-        const reductions = desc.match(regex) || [];
-        const increases = desc.match(increaseRegex) || [];
-        
-        keywordsFound += reductions.length;
-        keywordsFound += increases.length;
-        
-        projectEfficiencyScore += Math.min(10, keywordsFound * 2);
-      }
-      
-      projectEfficiencyScore = Math.min(projectEfficiencyScore, 40);
-      score += projectEfficiencyScore;
-      maxPossibleScore += 40;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating efficiency score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate collaboration score based on profile data
-   */
-  calculateCollaborationScore(experiences: any[], projects: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Collaboration keywords
-      const collaborationKeywords = [
-        'collaborat',
-        'team',
-        'partner',
-        'cross-functional',
-        'cross functional',
-        'interdisciplinary',
-        'joint',
-        'together',
-        'coordinate',
-        'stakeholder'
-      ];
-      
-      // Check experiences for collaboration indicators
-      for (const experience of experiences) {
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for collaboration keywords
-        let keywordsFound = 0;
-        for (const keyword of collaborationKeywords) {
-          const regex = new RegExp(`\\b${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          keywordsFound += matches.length;
-        }
-        
-        // Team size mentions earn extra points
-        const teamSizeMatches = desc.match(/team of (\d+)|(\d+)[- ]person team|(\d+) member/gi);
-        if (teamSizeMatches) {
-          keywordsFound += 3;
-        }
-        
-        // Points for mentions of cross-team/department collaboration
-        if (desc.includes('cross-department') || desc.includes('cross department') ||
-            desc.includes('cross-team') || desc.includes('cross team') ||
-            desc.includes('multiple teams') || desc.includes('several departments')) {
-          keywordsFound += 3;
-        }
-        
-        score += Math.min(20, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 60);
-      maxPossibleScore += 60;
-      
-      // Check projects for collaboration elements
-      let projectCollaborationScore = 0;
-      for (const project of projects) {
-        const desc = (project.description || '').toLowerCase();
-        
-        // Check for collaboration keywords
-        let keywordsFound = 0;
-        for (const keyword of collaborationKeywords) {
-          const regex = new RegExp(`\\b${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          keywordsFound += matches.length;
-        }
-        
-        // Points for explicitly mentioned collaboration
-        if (desc.includes('collaborated with') || desc.includes('working with') || 
-            desc.includes('worked alongside') || desc.includes('partnered with')) {
-          keywordsFound += 3;
-        }
-        
-        projectCollaborationScore += Math.min(10, keywordsFound * 2);
-      }
-      
-      projectCollaborationScore = Math.min(projectCollaborationScore, 40);
-      score += projectCollaborationScore;
-      maxPossibleScore += 40;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating collaboration score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate resilience score based on profile data
-   */
-  calculateResilienceScore(experiences: any[], education: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Resilience keywords
-      const resilienceKeywords = [
-        'overcom',
-        'challeng',
-        'adversity',
-        'difficult',
-        'obstacle',
-        'persist',
-        'persever',
-        'recover',
-        'adapt',
-        'pivot',
-        'crisis',
-        'problem',
-        'setback',
-        'hurdle',
-        'bounce back'
-      ];
-      
-      // Check experiences for resilience indicators
-      for (const experience of experiences) {
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for resilience keywords
-        let keywordsFound = 0;
-        for (const keyword of resilienceKeywords) {
-          const regex = new RegExp(`\\b${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          keywordsFound += matches.length;
-        }
-        
-        // Extra points for specific resilience phrases
-        if (desc.includes('turned around') || desc.includes('despite') || 
-            desc.includes('nevertheless') || desc.includes('in spite of')) {
-          keywordsFound += 2;
-        }
-        
-        if (desc.includes('failed') && (desc.includes('learned') || desc.includes('lesson'))) {
-          keywordsFound += 3;
-        }
-        
-        score += Math.min(15, keywordsFound * 2);
-      }
-      
-      // Check for career pivots/shifts (indicating adaptability)
-      let industries = new Set();
-      let roles = new Set();
-      for (const exp of experiences) {
-        if (exp.industry) industries.add(exp.industry.toLowerCase());
-        if (exp.title) roles.add(exp.title.toLowerCase());
-      }
-      
-      // Points for diverse industry experience (indicates adaptability)
-      if (industries.size >= 3) score += 15;
-      else if (industries.size >= 2) score += 10;
-      
-      // Points for diverse role experience (indicates adaptability)
-      if (roles.size >= 4) score += 15;
-      else if (roles.size >= 3) score += 10;
-      else if (roles.size >= 2) score += 5;
-      
-      // Check for concurrent education and work (indicates resilience)
-      interface DateRange {
-        start: Date;
-        end: Date;
-      }
-      
-      const educationPeriods: DateRange[] = [];
-      for (const edu of education) {
-        if (edu.start_date && edu.end_date) {
-          educationPeriods.push({
-            start: new Date(edu.start_date),
-            end: new Date(edu.end_date)
-          });
-        }
-      }
-      
-      const workPeriods: DateRange[] = [];
-      for (const exp of experiences) {
-        if (exp.start_date) {
-          workPeriods.push({
-            start: new Date(exp.start_date),
-            end: exp.end_date ? new Date(exp.end_date) : new Date()
-          });
-        }
-      }
-      
-      // Check for overlapping periods
-      let hasOverlap = false;
-      for (const edu of educationPeriods) {
-        for (const work of workPeriods) {
-          if ((edu.start <= work.end && edu.end >= work.start)) {
-            hasOverlap = true;
-            break;
-          }
-        }
-        if (hasOverlap) break;
-      }
-      
-      if (hasOverlap) score += 15;
-      
-      // Cap the score at 70 from experiences/education analysis
-      score = Math.min(score, 70);
-      maxPossibleScore += 70;
-      
-      // Add base resilience score - everyone has some baseline resilience
-      score += 30;
-      maxPossibleScore += 30;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating resilience score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Calculate innovation score based on profile data
-   */
-  calculateInnovationScore(projects: any[], experiences: any[]): number {
-    try {
-      let score = 0;
-      let maxPossibleScore = 0;
-      
-      // Innovation keywords
-      const innovationKeywords = [
-        'innovat',
-        'new',
-        'novel',
-        'groundbreaking',
-        'cutting-edge',
-        'cutting edge',
-        'pioneering',
-        'revolution',
-        'transform',
-        'disrupt',
-        'first-of-its-kind',
-        'first of its kind',
-        'patent',
-        'invent',
-        'breakthrough'
-      ];
-      
-      // Check projects for innovation indicators
-      for (const project of projects) {
-        const title = (project.name || '').toLowerCase();
-        const desc = (project.description || '').toLowerCase();
-        
-        // Check for innovation keywords in title
-        for (const keyword of innovationKeywords) {
-          if (title.includes(keyword)) {
-            score += 5;
-            break;
-          }
-        }
-        
-        // Check for innovation keywords in description
-        let keywordsFound = 0;
-        for (const keyword of innovationKeywords) {
-          const regex = new RegExp(`\\b${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          keywordsFound += matches.length;
-        }
-        
-        // Extra points for patent mentions
-        if (desc.includes('patent')) {
-          keywordsFound += 3;
-        }
-        
-        score += Math.min(10, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 50);
-      maxPossibleScore += 50;
-      
-      // Check experiences for innovation indicators
-      for (const experience of experiences) {
-        const title = (experience.title || '').toLowerCase();
-        const desc = (experience.description || '').toLowerCase();
-        
-        // Check for innovation-related roles
-        if (title.includes('innovat') || title.includes('r&d') || 
-            title.includes('research') || title.includes('product')) {
-          score += 10;
-        }
-        
-        // Check for innovation keywords in description
-        let keywordsFound = 0;
-        for (const keyword of innovationKeywords) {
-          const regex = new RegExp(`\\b${keyword}\\w*\\b`, 'gi');
-          const matches = desc.match(regex) || [];
-          keywordsFound += matches.length;
-        }
-        
-        score += Math.min(15, keywordsFound * 2);
-      }
-      
-      score = Math.min(score, 100); // Cap at 100
-      maxPossibleScore += 50;
-      
-      // Normalize to 100 scale
-      return Math.min(100, Math.round((score / Math.max(1, maxPossibleScore)) * 100));
-    } catch (error) {
-      logger.error('Error calculating innovation score', { error });
-      return 50; // Default to middle score on error
-    }
-  }
-
-  /**
-   * Helper method to calculate score based on matching skills
-   */
-  private calculateSkillsScore(skills: any[], relevantSkills: string[]): { score: number, maxPossible: number } {
-    if (!skills || skills.length === 0) {
-      return { score: 0, maxPossible: 0 };
-    }
-    
-    let score = 0;
-    const maxPossible = 30; // Cap at 30 points for skills
-    
-    for (const skill of skills) {
-      const skillName = (skill.name || '').toLowerCase();
-      
-      for (const relevantSkill of relevantSkills) {
-        if (skillName.includes(relevantSkill.toLowerCase())) {
-          // Add points based on proficiency level if available
-          if (skill.proficiency) {
-            const proficiency = skill.proficiency.toLowerCase();
-            if (proficiency.includes('expert') || proficiency.includes('advanced')) {
-              score += 7;
-            } else if (proficiency.includes('intermediate')) {
-              score += 5;
-            } else {
-              score += 3;
-            }
-          } else {
-            score += 5; // Default points if no proficiency specified
+          if (!traitScores[key]) {
+            traitScores[key] = {
+              name: trait.name,
+              category: trait.category,
+              totalScore: 0,
+              weightSum: 0,
+              responses: []
+            };
           }
           
-          break;
+          traitScores[key].totalScore += numericValue * trait.weight;
+          traitScores[key].weightSum += trait.weight;
+          traitScores[key].responses.push({
+            questionId: response.questionId,
+            response: response.response,
+            weight: trait.weight
+          });
+        });
+      });
+      
+      // Calculate final scores and create trait objects
+      const traits: Array<Partial<Trait>> = Object.values(traitScores).map(traitData => {
+        // Calculate normalized score (0-100)
+        const normalizedScore = Math.min(100, Math.max(0,
+          Math.round((traitData.totalScore / traitData.weightSum) * 20)
+        ));
+        
+        return {
+          profileId,
+          name: traitData.name,
+          category: traitData.category,
+          score: normalizedScore,
+          assessmentMethod: 'self',
+          assessmentDate: new Date(),
+          metadata: {
+            assessmentType: 'direct',
+            responses: traitData.responses
+          }
+        };
+      });
+      
+      // Save traits to the database
+      const savedTraits = await this.dataRepository.saveTraitAssessment({
+        profileId,
+        traits: traits.map(t => ({
+          name: t.name!,
+          category: t.category!,
+          score: t.score!,
+          assessmentMethod: 'self',
+          metadata: t.metadata
+        })),
+        source: 'questionnaire'
+      });
+      
+      return savedTraits;
+    } catch (error) {
+      logger.error('Error performing direct trait assessment', { error, profileId });
+      throw new Error(`Failed to process trait assessment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Perform content-based trait assessment
+   */
+  async performContentAssessment(
+    profileId: string,
+    content: string,
+    contentType: 'resume' | 'professional' | 'social' | 'interview' | 'feedback'
+  ): Promise<Trait[]> {
+    try {
+      logger.info('Performing content-based trait assessment', { profileId, contentType });
+      
+      // Analyze content
+      const traitResults = this.contentAnalyzer.analyzeTextContent(content, { contentType }).traits;
+      
+      // Filter out low confidence or low score results
+      const validResults = traitResults.filter(result => 
+        result.confidence > 0.4 && result.score > 0
+      );
+      
+      if (validResults.length === 0) {
+        logger.warn('No valid traits identified from content', { profileId });
+        return [];
+      }
+      
+      // Convert to trait objects
+      const traits: Array<Partial<Trait>> = validResults.map(result => ({
+        profileId,
+        name: result.name,
+        category: result.category,
+        score: result.score,
+        assessmentMethod: 'derived',
+        assessmentDate: new Date(),
+        metadata: {
+          assessmentType: 'content',
+          contentType,
+          confidence: result.confidence,
+          evidence: result.evidence
         }
+      }));
+      
+      // Save traits to the database
+      const savedTraits = await this.dataRepository.saveTraitAssessment({
+        profileId,
+        traits: traits.map(t => ({
+          name: t.name!,
+          category: t.category!,
+          score: t.score!,
+          assessmentMethod: 'derived',
+          metadata: t.metadata
+        })),
+        source: `content:${contentType}`
+      });
+      
+      return savedTraits;
+    } catch (error) {
+      logger.error('Error performing content-based trait assessment', { error, profileId });
+      throw new Error(`Failed to process content assessment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Perform project-based trait assessment
+   */
+  async performProjectAssessment(
+    profileId: string,
+    project: {
+      title: string;
+      description: string;
+      objectives?: string[];
+      outcomes?: string[];
+      technologies?: string[];
+      methodologies?: string[];
+      role?: string;
+      teamSize?: number;
+    }
+  ): Promise<Trait[]> {
+    try {
+      logger.info('Performing project-based trait assessment', { profileId });
+      
+      // Analyze project details
+      const projectResults = this.contentAnalyzer.analyzeProjectDetails(project);
+      
+      // Filter out low confidence or low score results
+      const validResults = projectResults.filter(result => 
+        result.confidence > 0.5 && result.score > 0
+      );
+      
+      if (validResults.length === 0) {
+        logger.warn('No valid traits identified from project', { profileId });
+        return [];
+      }
+      
+      // Convert to trait objects
+      const traits: Array<Partial<Trait>> = validResults.map(result => ({
+        profileId,
+        name: result.name,
+        category: result.category,
+        score: result.score,
+        assessmentMethod: 'derived',
+        assessmentDate: new Date(),
+        metadata: {
+          assessmentType: 'project',
+          projectTitle: project.title,
+          confidence: result.confidence,
+          features: result.features,
+          technologies: project.technologies,
+          methodologies: project.methodologies,
+          teamSize: project.teamSize
+        }
+      }));
+      
+      // Save traits to the database
+      const savedTraits = await this.dataRepository.saveTraitAssessment({
+        profileId,
+        traits: traits.map(t => ({
+          name: t.name!,
+          category: t.category!,
+          score: t.score!,
+          assessmentMethod: 'derived',
+          metadata: t.metadata
+        })),
+        source: 'project'
+      });
+      
+      return savedTraits;
+    } catch (error) {
+      logger.error('Error performing project-based trait assessment', { error, profileId });
+      throw new Error(`Failed to process project assessment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Perform feedback-based trait assessment
+   */
+  async performFeedbackAssessment(
+    profileId: string,
+    feedback: {
+      text: string;
+      source: string;
+      relationship?: string;
+      context?: string;
+      rating?: number; // 1-5 scale
+    }
+  ): Promise<Trait[]> {
+    try {
+      logger.info('Performing feedback-based trait assessment', { profileId });
+      
+      // Analyze feedback
+      const feedbackResults = this.contentAnalyzer.analyzeFeedback(feedback);
+      
+      // Filter out low confidence or low score results
+      const validResults = feedbackResults.filter(result => 
+        result.confidence > 0.5 && result.score > 0
+      );
+      
+      if (validResults.length === 0) {
+        logger.warn('No valid traits identified from feedback', { profileId });
+        return [];
+      }
+      
+      // Convert to trait objects
+      const traits: Array<Partial<Trait>> = validResults.map(result => ({
+        profileId,
+        name: result.name,
+        category: result.category,
+        score: result.score,
+        assessmentMethod: 'external',
+        assessmentDate: new Date(),
+        metadata: {
+          assessmentType: 'feedback',
+          source: feedback.source,
+          relationship: feedback.relationship,
+          context: feedback.context,
+          rating: feedback.rating,
+          confidence: result.confidence
+        }
+      }));
+      
+      // Save traits to the database
+      const savedTraits = await this.dataRepository.saveTraitAssessment({
+        profileId,
+        traits: traits.map(t => ({
+          name: t.name!,
+          category: t.category!,
+          score: t.score!,
+          assessmentMethod: 'external',
+          metadata: t.metadata
+        })),
+        source: `feedback:${feedback.source}`
+      });
+      
+      return savedTraits;
+    } catch (error) {
+      logger.error('Error performing feedback-based trait assessment', { error, profileId });
+      throw new Error(`Failed to process feedback assessment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Perform comparative trait assessment against benchmark
+   */
+  async performComparativeAssessment(
+    profileId: string,
+    benchmarkType: 'industry' | 'role' | 'experience_level',
+    benchmarkValue: string
+  ): Promise<{
+    traits: Trait[];
+    comparison: Array<{
+      traitName: string;
+      profileScore: number;
+      benchmarkScore: number;
+      gap: number;
+      percentile?: number;
+    }>;
+  }> {
+    try {
+      logger.info('Performing comparative trait assessment', { profileId, benchmarkType, benchmarkValue });
+      
+      // Get profile traits
+      const profileTraits = await this.dataRepository.getTraitsForProfile(profileId);
+      
+      if (!profileTraits || profileTraits.length === 0) {
+        throw new Error('No traits found for profile');
+      }
+      
+      // Get benchmark data
+      const benchmarkData = await this.getBenchmarkData(benchmarkType, benchmarkValue);
+      
+      // Compare each trait
+      const comparison: Array<{
+        traitName: string;
+        profileScore: number;
+        benchmarkScore: number;
+        gap: number;
+        percentile?: number;
+      }> = [];
+      
+      // Get latest values for each trait
+      const latestTraits = this.getLatestTraitValues(profileTraits);
+      
+      // Compare with benchmark data
+      latestTraits.forEach(trait => {
+        const benchmarkTrait = benchmarkData.find(b => 
+          b.name.toLowerCase() === trait.name.toLowerCase()
+        );
+        
+        if (benchmarkTrait) {
+          comparison.push({
+            traitName: trait.name,
+            profileScore: trait.score,
+            benchmarkScore: benchmarkTrait.score,
+            gap: trait.score - benchmarkTrait.score,
+            percentile: this.calculatePercentile(
+              trait.score,
+              benchmarkTrait.distribution
+            )
+          });
+        }
+      });
+      
+      // Create trait objects for storing the comparison
+      const updatedTraits = comparison.map(comp => ({
+        profileId,
+        name: comp.traitName,
+        category: latestTraits.find(t => t.name === comp.traitName)?.category || 'general',
+        score: comp.profileScore, // Keep original score
+        assessmentMethod: 'derived',
+        assessmentDate: new Date(),
+        metadata: {
+          assessmentType: 'comparative',
+          benchmarkType,
+          benchmarkValue,
+          benchmarkScore: comp.benchmarkScore,
+          gap: comp.gap,
+          percentile: comp.percentile
+        }
+      }));
+      
+      // Save only the comparative metadata, not new trait scores
+      const savedTraits = await this.dataRepository.saveTraitAssessment({
+        profileId,
+        traits: updatedTraits.map(t => ({
+          name: t.name,
+          category: t.category,
+          score: t.score,
+          assessmentMethod: 'derived',
+          metadata: t.metadata
+        })),
+        source: `comparative:${benchmarkType}:${benchmarkValue}`
+      });
+      
+      return {
+        traits: savedTraits,
+        comparison
+      };
+    } catch (error) {
+      logger.error('Error performing comparative trait assessment', { error, profileId });
+      throw new Error(`Failed to process comparative assessment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Aggregate traits from multiple assessments
+   */
+  async aggregateTraitAssessments(
+    profileId: string,
+    options?: {
+      timeframe?: 'recent' | 'all';
+      assessmentTypes?: ('self' | 'external' | 'derived')[];
+      weightMap?: {
+        self?: number;
+        external?: number;
+        derived?: number;
+      };
+    }
+  ): Promise<Trait[]> {
+    try {
+      logger.info('Aggregating trait assessments', { profileId, options });
+      
+      // Get all traits for the profile
+      const allTraits = await this.dataRepository.getTraitsForProfile(profileId);
+      
+      if (!allTraits || allTraits.length === 0) {
+        logger.warn('No traits found for profile', { profileId });
+        return [];
+      }
+      
+      // Apply time filter if specified
+      let filteredTraits = allTraits;
+      if (options?.timeframe === 'recent') {
+        const recentDate = new Date();
+        recentDate.setMonth(recentDate.getMonth() - 3); // Last 3 months
+        
+        filteredTraits = allTraits.filter(trait => 
+          trait.assessmentDate >= recentDate
+        );
+      }
+      
+      // Apply assessment type filter if specified
+      if (options?.assessmentTypes && options.assessmentTypes.length > 0) {
+        filteredTraits = filteredTraits.filter(trait =>
+          options.assessmentTypes!.includes(trait.assessmentMethod as any)
+        );
+      }
+      
+      if (filteredTraits.length === 0) {
+        logger.warn('No traits match the filter criteria', { profileId, options });
+        return [];
+      }
+      
+      // Group traits by name
+      const traitGroups: Record<string, Trait[]> = {};
+      
+      filteredTraits.forEach(trait => {
+        const key = trait.name.toLowerCase();
+        
+        if (!traitGroups[key]) {
+          traitGroups[key] = [];
+        }
+        
+        traitGroups[key].push(trait);
+      });
+      
+      // Set default weights if not provided
+      const weights = options?.weightMap || {
+        self: 1.0,
+        external: 1.5,
+        derived: 0.8
+      };
+      
+      // Aggregate each trait group
+      const aggregatedTraits: Trait[] = [];
+      
+      Object.entries(traitGroups).forEach(([traitName, traits]) => {
+        // Use latest category for consistency
+        const category = traits[0].category;
+        
+        // Calculate weighted average score
+        let totalWeightedScore = 0;
+        let totalWeight = 0;
+        
+        traits.forEach(trait => {
+          const weight = weights[trait.assessmentMethod as keyof typeof weights] || 1.0;
+          
+          totalWeightedScore += trait.score * weight;
+          totalWeight += weight;
+        });
+        
+        const aggregatedScore = Math.round(totalWeightedScore / totalWeight);
+        
+        // Create aggregated trait
+        const aggregatedTrait: Partial<Trait> = {
+          profileId,
+          name: traits[0].name, // Use proper case from original
+          category,
+          score: aggregatedScore,
+          assessmentMethod: 'derived',
+          assessmentDate: new Date(),
+          metadata: {
+            assessmentType: 'aggregated',
+            sourceTraits: traits.map(t => ({
+              id: t.id,
+              assessmentMethod: t.assessmentMethod,
+              assessmentDate: t.assessmentDate,
+              score: t.score
+            })),
+            weights
+          }
+        };
+        
+        // Add to result
+        aggregatedTraits.push(aggregatedTrait as Trait);
+      });
+      
+      return aggregatedTraits;
+    } catch (error) {
+      logger.error('Error aggregating trait assessments', { error, profileId });
+      throw new Error(`Failed to aggregate trait assessments: ${error.message}`);
+    }
+  }
+
+  /**
+   * Convert string response to numeric value for assessment
+   */
+  private convertResponseToNumeric(response: string): number {
+    // Normalize response
+    const normalized = response.trim().toLowerCase();
+    
+    // Map common responses to 1-5 scale
+    if (['strongly agree', 'always', 'excellent', 'definitely'].includes(normalized)) {
+      return 5;
+    } else if (['agree', 'often', 'good', 'yes', 'very well'].includes(normalized)) {
+      return 4;
+    } else if (['neutral', 'sometimes', 'average', 'occasionally', 'somewhat'].includes(normalized)) {
+      return 3;
+    } else if (['disagree', 'rarely', 'poor', 'not really'].includes(normalized)) {
+      return 2;
+    } else if (['strongly disagree', 'never', 'very poor', 'not at all'].includes(normalized)) {
+      return 1;
+    }
+    
+    // Default
+    return 3;
+  }
+
+  /**
+   * Get latest value for each trait from the history
+   */
+  private getLatestTraitValues(traits: Trait[]): Trait[] {
+    const latestTraits: Record<string, Trait> = {};
+    
+    traits.forEach(trait => {
+      const key = trait.name.toLowerCase();
+      
+      if (!latestTraits[key] || trait.assessmentDate > latestTraits[key].assessmentDate) {
+        latestTraits[key] = trait;
+      }
+    });
+    
+    return Object.values(latestTraits);
+  }
+
+  /**
+   * Get benchmark data for comparisons
+   */
+  private async getBenchmarkData(
+    benchmarkType: string,
+    benchmarkValue: string
+  ): Promise<Array<{
+    name: string;
+    score: number;
+    distribution: Array<{ score: number; frequency: number }>
+  }>> {
+    // This would typically come from a database or external service
+    // For now, return mock data based on type and value
+    
+    if (benchmarkType === 'industry') {
+      return this.getMockIndustryBenchmark(benchmarkValue);
+    } else if (benchmarkType === 'role') {
+      return this.getMockRoleBenchmark(benchmarkValue);
+    } else if (benchmarkType === 'experience_level') {
+      return this.getMockExperienceBenchmark(benchmarkValue);
+    }
+    
+    return [];
+  }
+
+  /**
+   * Calculate percentile for a score within a distribution
+   */
+  private calculatePercentile(
+    score: number,
+    distribution: Array<{ score: number; frequency: number }>
+  ): number {
+    if (!distribution || distribution.length === 0) {
+      return 50; // Default to median if no distribution data
+    }
+    
+    // Sort distribution by score
+    const sortedDist = [...distribution].sort((a, b) => a.score - b.score);
+    
+    // Calculate total frequency
+    const totalFrequency = sortedDist.reduce((sum, item) => sum + item.frequency, 0);
+    
+    // Calculate how many scores are below our score
+    let belowFrequency = 0;
+    for (const item of sortedDist) {
+      if (item.score < score) {
+        belowFrequency += item.frequency;
+      } else if (item.score === score) {
+        // For exact matches, count half of the frequency to account for distribution
+        belowFrequency += item.frequency / 2;
+        break;
+      } else {
+        break;
       }
     }
     
-    return { score: Math.min(score, maxPossible), maxPossible };
+    // Calculate percentile
+    const percentile = (belowFrequency / totalFrequency) * 100;
+    
+    return Math.round(percentile);
+  }
+
+  /**
+   * Get mock industry benchmark data
+   */
+  private getMockIndustryBenchmark(industry: string): Array<{
+    name: string;
+    score: number;
+    distribution: Array<{ score: number; frequency: number }>
+  }> {
+    const baseBenchmarks = [
+      {
+        name: 'analytical thinking',
+        score: 70,
+        distribution: this.generateMockDistribution(70, 15)
+      },
+      {
+        name: 'problem solving',
+        score: 75,
+        distribution: this.generateMockDistribution(75, 12)
+      },
+      {
+        name: 'leadership',
+        score: 65,
+        distribution: this.generateMockDistribution(65, 18)
+      },
+      {
+        name: 'communication',
+        score: 68,
+        distribution: this.generateMockDistribution(68, 15)
+      },
+      {
+        name: 'collaboration',
+        score: 72,
+        distribution: this.generateMockDistribution(72, 14)
+      },
+      {
+        name: 'adaptability',
+        score: 70,
+        distribution: this.generateMockDistribution(70, 16)
+      },
+      {
+        name: 'technical proficiency',
+        score: 73,
+        distribution: this.generateMockDistribution(73, 15)
+      }
+    ];
+    
+    // Adjust for industry
+    switch (industry.toLowerCase()) {
+      case 'technology':
+        return baseBenchmarks.map(b => {
+          if (b.name === 'technical proficiency') {
+            return {
+              ...b,
+              score: 85, 
+              distribution: this.generateMockDistribution(85, 10)
+            };
+          } else if (b.name === 'analytical thinking') {
+            return {
+              ...b,
+              score: 80,
+              distribution: this.generateMockDistribution(80, 12)
+            };
+          } else if (b.name === 'problem solving') {
+            return {
+              ...b,
+              score: 82,
+              distribution: this.generateMockDistribution(82, 11)
+            };
+          }
+          return b;
+        });
+        
+      case 'finance':
+        return baseBenchmarks.map(b => {
+          if (b.name === 'analytical thinking') {
+            return {
+              ...b,
+              score: 85,
+              distribution: this.generateMockDistribution(85, 10)
+            };
+          } else if (b.name === 'attention to detail') {
+            return {
+              ...b,
+              score: 90,
+              distribution: this.generateMockDistribution(90, 8)
+            };
+          }
+          return b;
+        });
+        
+      case 'healthcare':
+        return baseBenchmarks.map(b => {
+          if (b.name === 'empathy') {
+            return {
+              ...b,
+              score: 85,
+              distribution: this.generateMockDistribution(85, 10)
+            };
+          } else if (b.name === 'communication') {
+            return {
+              ...b,
+              score: 80,
+              distribution: this.generateMockDistribution(80, 12)
+            };
+          }
+          return b;
+        });
+        
+      default:
+        return baseBenchmarks;
+    }
+  }
+
+  /**
+   * Get mock role benchmark data
+   */
+  private getMockRoleBenchmark(role: string): Array<{
+    name: string;
+    score: number;
+    distribution: Array<{ score: number; frequency: number }>
+  }> {
+    const baseBenchmarks = [
+      {
+        name: 'analytical thinking',
+        score: 70,
+        distribution: this.generateMockDistribution(70, 15)
+      },
+      {
+        name: 'problem solving',
+        score: 75,
+        distribution: this.generateMockDistribution(75, 12)
+      },
+      {
+        name: 'leadership',
+        score: 65,
+        distribution: this.generateMockDistribution(65, 18)
+      },
+      {
+        name: 'communication',
+        score: 68,
+        distribution: this.generateMockDistribution(68, 15)
+      }
+    ];
+    
+    // Adjust for role
+    switch (role.toLowerCase()) {
+      case 'manager':
+      case 'team lead':
+        return baseBenchmarks.map(b => {
+          if (b.name === 'leadership') {
+            return {
+              ...b,
+              score: 85,
+              distribution: this.generateMockDistribution(85, 10)
+            };
+          } else if (b.name === 'communication') {
+            return {
+              ...b,
+              score: 80,
+              distribution: this.generateMockDistribution(80, 12)
+            };
+          }
+          return b;
+        });
+        
+      case 'developer':
+      case 'engineer':
+        return baseBenchmarks.map(b => {
+          if (b.name === 'problem solving') {
+            return {
+              ...b,
+              score: 85,
+              distribution: this.generateMockDistribution(85, 10)
+            };
+          } else if (b.name === 'technical proficiency') {
+            return {
+              ...b,
+              score: 85,
+              distribution: this.generateMockDistribution(85, 10)
+            };
+          }
+          return b;
+        });
+        
+      case 'designer':
+        return baseBenchmarks.map(b => {
+          if (b.name === 'creative thinking') {
+            return {
+              ...b,
+              score: 88,
+              distribution: this.generateMockDistribution(88, 9)
+            };
+          } else if (b.name === 'attention to detail') {
+            return {
+              ...b,
+              score: 82,
+              distribution: this.generateMockDistribution(82, 11)
+            };
+          }
+          return b;
+        });
+        
+      default:
+        return baseBenchmarks;
+    }
+  }
+
+  /**
+   * Get mock experience level benchmark data
+   */
+  private getMockExperienceBenchmark(experienceLevel: string): Array<{
+    name: string;
+    score: number;
+    distribution: Array<{ score: number; frequency: number }>
+  }> {
+    const baseBenchmarks = [
+      {
+        name: 'analytical thinking',
+        score: 70,
+        distribution: this.generateMockDistribution(70, 15)
+      },
+      {
+        name: 'problem solving',
+        score: 75,
+        distribution: this.generateMockDistribution(75, 12)
+      },
+      {
+        name: 'leadership',
+        score: 65,
+        distribution: this.generateMockDistribution(65, 18)
+      },
+      {
+        name: 'communication',
+        score: 68,
+        distribution: this.generateMockDistribution(68, 15)
+      }
+    ];
+    
+    // Adjust for experience level
+    switch (experienceLevel.toLowerCase()) {
+      case 'entry':
+      case 'junior':
+        return baseBenchmarks.map(b => {
+          return {
+            ...b,
+            score: Math.max(50, b.score - 20),
+            distribution: this.generateMockDistribution(Math.max(50, b.score - 20), 18)
+          };
+        });
+        
+      case 'mid':
+      case 'intermediate':
+        return baseBenchmarks;
+        
+      case 'senior':
+      case 'expert':
+        return baseBenchmarks.map(b => {
+          return {
+            ...b,
+            score: Math.min(95, b.score + 15),
+            distribution: this.generateMockDistribution(Math.min(95, b.score + 15), 10)
+          };
+        });
+        
+      default:
+        return baseBenchmarks;
+    }
+  }
+
+  /**
+   * Generate mock distribution for a given mean score and standard deviation
+   */
+  private generateMockDistribution(
+    mean: number,
+    stdDev: number
+  ): Array<{ score: number; frequency: number }> {
+    const distribution: Array<{ score: number; frequency: number }> = [];
+    
+    // Generate normal distribution around the mean
+    for (let score = Math.max(0, mean - 3 * stdDev); score <= Math.min(100, mean + 3 * stdDev); score += 5) {
+      const z = (score - mean) / stdDev;
+      const frequency = Math.round(100 * Math.exp(-0.5 * z * z));
+      
+      distribution.push({ score, frequency });
+    }
+    
+    return distribution;
   }
 }

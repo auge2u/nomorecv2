@@ -7,7 +7,9 @@ import { TraitAssessmentEngine } from './trait-assessment.engine';
 import { TraitAnalyticsEngine } from './trait-analytics.engine';
 import { TraitEvolutionTracker } from './trait-evolution.tracker';
 import { TraitRecommendationEngine } from './trait-recommendation.engine';
-import { TraitRelationship, TraitCluster, MetaCluster, TraitEvolution, TraitRecommendation } from '../models/trait.model';
+import { TraitContentAnalyzer } from './trait-content-analyzer';
+import { TraitVisualizationUtils } from './trait-visualization.utils';
+import { TraitRelationship, TraitCluster, MetaCluster, TraitEvolution, TraitRecommendation, extendedToCoreTrait } from '../models/trait.model';
 
 // Domain-specific error classes for more granular error handling
 class TraitError extends AppError {
@@ -69,6 +71,7 @@ export class TraitService {
   private analyticsEngine: TraitAnalyticsEngine;
   private evolutionTracker: TraitEvolutionTracker;
   private recommendationEngine: TraitRecommendationEngine;
+  private contentAnalyzer: TraitContentAnalyzer;
 
   constructor() {
     this.dataRepository = new TraitDataRepository();
@@ -76,6 +79,7 @@ export class TraitService {
     this.analyticsEngine = new TraitAnalyticsEngine();
     this.evolutionTracker = new TraitEvolutionTracker(this.dataRepository);
     this.recommendationEngine = new TraitRecommendationEngine();
+    this.contentAnalyzer = new TraitContentAnalyzer();
   }
 
   /**
@@ -87,7 +91,9 @@ export class TraitService {
         throw new Error('Profile ID is required');
       }
       
-      return await this.dataRepository.getTraitsForProfile(profileId, category);
+      const traits = await this.dataRepository.getTraitsForProfile(profileId, category);
+      // Convert to core traits for compatibility
+      return traits.map(extendedToCoreTrait);
     } catch (error) {
       logger.error('Error getting profile traits', { error, profileId });
       throw new Error(`Failed to fetch traits for profile ${profileId}: ${error.message}`);
@@ -103,7 +109,9 @@ export class TraitService {
         throw new Error('Trait ID is required');
       }
       
-      return await this.dataRepository.getTraitById(traitId);
+      const trait = await this.dataRepository.getTraitById(traitId);
+      // Convert to core trait for compatibility
+      return trait ? extendedToCoreTrait(trait) : null;
     } catch (error) {
       logger.error('Error getting trait by ID', { error, traitId });
       throw new Error(`Failed to fetch trait ${traitId}: ${error.message}`);
@@ -899,8 +907,12 @@ export class TraitService {
       const enhancedTraits = traits.map(t => {
         // Find relationships for this trait
         const relatedTraits = relationships.relationships
-          .filter(r => r.trait1.name === t.name || r.trait2.name === t.name)
-          .map(r => r.trait1.name === t.name ? r.trait2 : r.trait1);
+          .filter(r => r.trait1?.name === t.name || r.trait2?.name === t.name)
+          .map(r => {
+            if (!r.trait1 || !r.trait2) return null;
+            return r.trait1.name === t.name ? r.trait2 : r.trait1;
+          })
+          .filter((trait): trait is any => trait !== null);
         
         return {
           ...t,
@@ -1015,17 +1027,18 @@ export class TraitService {
       if (!evolution.dataPoints || evolution.dataPoints.length === 0) continue;
       
       // Get trend information
-      const { trend, confidence } = evolution;
+      const { trend, confidence = 0 } = evolution;
+      const traitName = evolution.name || evolution.traitName;
       
       // Add insight based on trend
       if (trend === 'improving' && confidence > 0.7) {
-        insights.push(`Your ${evolution.name} is steadily improving, showing consistent progress.`);
+        insights.push(`Your ${traitName} is steadily improving, showing consistent progress.`);
       } else if (trend === 'declining' && confidence > 0.7) {
-        insights.push(`Your ${evolution.name} has been declining, which may require attention.`);
+        insights.push(`Your ${traitName} has been declining, which may require attention.`);
       } else if (trend === 'stable' && confidence > 0.7) {
-        insights.push(`Your ${evolution.name} has remained stable over time.`);
+        insights.push(`Your ${traitName} has remained stable over time.`);
       } else if (trend === 'volatile') {
-        insights.push(`Your ${evolution.name} shows significant variability, which may indicate inconsistent application.`);
+        insights.push(`Your ${traitName} shows significant variability, which may indicate inconsistent application.`);
       }
       
       // Add projection insight if available
@@ -1782,6 +1795,300 @@ export class TraitService {
     }
   }
   
+  /**
+   * Assess traits from content analysis
+   * Implements indirect trait assessment through content analysis
+   */
+  async assessTraitsFromContent(
+    profileId: string,
+    content: string,
+    contentType: 'resume' | 'project_description' | 'bio' | 'interview' | 'general'
+  ): Promise<Trait[]> {
+    try {
+      if (!profileId) {
+        throw new Error('Profile ID is required');
+      }
+
+      if (!content || content.trim().length === 0) {
+        throw new Error('Content is required for assessment');
+      }
+
+      // Analyze content
+      const analysisResult = this.contentAnalyzer.analyzeContent(content, contentType);
+
+      if (!analysisResult.traitScores || analysisResult.traitScores.length === 0) {
+        logger.info('No traits detected from content', { profileId });
+        return [];
+      }
+
+      // Create new traits from the analysis
+      const createdTraits: Trait[] = [];
+
+      // Use transaction for consistency
+      const { error: beginError } = await supabase.rpc('begin_transaction');
+      if (beginError) throw beginError;
+
+      try {
+        // Create traits for each detected score with sufficient confidence
+        for (const score of analysisResult.traitScores.filter(s => s.confidence >= 0.5)) {
+          // Map trait name to appropriate category
+          const category = this.mapTraitNameToCategory(score.trait);
+          
+          const traitData = {
+            profileId,
+            name: score.trait,
+            category,
+            score: score.score,
+            assessmentMethod: 'derived' as const,
+            assessmentDate: new Date(),
+            metadata: {
+              contentAnalysis: true,
+              confidence: score.confidence,
+              evidence: score.evidence
+            }
+          };
+          
+          const trait = await this.createTrait(traitData);
+          createdTraits.push(trait);
+        }
+        
+        // Commit transaction
+        const { error: endError } = await supabase.rpc('commit_transaction');
+        if (endError) throw endError;
+        
+        return createdTraits;
+      } catch (error) {
+        // Rollback on error
+        await supabase.rpc('rollback_transaction');
+        throw error;
+      }
+    } catch (error) {
+      logger.error('Error assessing traits from content', { error, profileId });
+      throw new Error(`Failed to assess traits from content: ${error.message}`);
+    }
+  }
+
+  /**
+   * Analyze multiple content items for trait assessment
+   */
+  async analyzeMultipleContents(
+    profileId: string,
+    contents: Array<{
+      content: string;
+      contentType: 'resume' | 'project_description' | 'bio' | 'interview' | 'general';
+      weight: number;
+    }>
+  ): Promise<{
+    detectedTraits: Trait[];
+    analysisInsights: string[];
+  }> {
+    try {
+      // Validate inputs
+      if (!profileId) {
+        throw new Error('Profile ID is required');
+      }
+
+      if (!contents || contents.length === 0) {
+        throw new Error('Content items are required for analysis');
+      }
+
+      // Analyze content items
+      const analysisResult = this.contentAnalyzer.analyzeMultipleContents(contents);
+      
+      if (!analysisResult.aggregatedTraitScores || analysisResult.aggregatedTraitScores.length === 0) {
+        return { detectedTraits: [], analysisInsights: [] };
+      }
+
+      // Create traits from analysis
+      const detectedTraits: Trait[] = [];
+
+      // Use transaction for consistency
+      const { error: beginError } = await supabase.rpc('begin_transaction');
+      if (beginError) throw beginError;
+
+      try {
+        // Create traits for each detected score with sufficient confidence
+        for (const score of analysisResult.aggregatedTraitScores.filter(s => s.confidence >= 0.5)) {
+          const category = this.mapTraitNameToCategory(score.trait);
+          
+          const traitData = {
+            profileId,
+            name: score.trait,
+            category,
+            score: score.score,
+            assessmentMethod: 'derived' as const,
+            assessmentDate: new Date(),
+            metadata: {
+              contentAnalysis: true,
+              multipleSourceAnalysis: true,
+              confidence: score.confidence,
+              evidence: score.evidence
+            }
+          };
+          
+          const trait = await this.createTrait(traitData);
+          detectedTraits.push(trait);
+        }
+        
+        // Commit transaction
+        const { error: endError } = await supabase.rpc('commit_transaction');
+        if (endError) throw endError;
+        
+        return {
+          detectedTraits,
+          analysisInsights: analysisResult.keyInsights
+        };
+      } catch (error) {
+        // Rollback on error
+        await supabase.rpc('rollback_transaction');
+        throw error;
+      }
+    } catch (error) {
+      logger.error('Error analyzing multiple contents', { error, profileId });
+      throw new Error(`Failed to analyze multiple contents: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get trait visualization data for constellation view
+   */
+  async getTraitConstellationData(profileId: string): Promise<{
+    nodes: any[];
+    links: any[];
+    groups: any[];
+  }> {
+    try {
+      // Get traits and relationships
+      const traits = await this.getTraitsForProfile(profileId);
+      const relationshipsData = await this.getTraitRelationships(profileId);
+      
+      // Generate visualization data
+      return TraitVisualizationUtils.generateConstellationData(
+        traits,
+        relationshipsData.relationships
+      );
+    } catch (error) {
+      logger.error('Error generating trait constellation data', { error, profileId });
+      return { nodes: [], links: [], groups: [] };
+    }
+  }
+
+  /**
+   * Get trait visualization data for strength distribution
+   */
+  async getTraitStrengthDistribution(profileId: string): Promise<{
+    categories: string[];
+    series: any[];
+  }> {
+    try {
+      // Get traits and clusters
+      const traits = await this.getTraitsForProfile(profileId);
+      const relationshipsData = await this.getTraitRelationships(profileId);
+      
+      // Generate visualization data
+      return TraitVisualizationUtils.generateStrengthDistributionData(
+        traits,
+        relationshipsData.clusters.categoryClusters
+      );
+    } catch (error) {
+      logger.error('Error generating trait strength distribution', { error, profileId });
+      return { categories: [], series: [] };
+    }
+  }
+
+  /**
+   * Get trait comparison visualization data
+   */
+  async getTraitComparisonVisualization(
+    sourceProfileId: string,
+    targetProfileId: string
+  ): Promise<{
+    categories: string[];
+    sourceData: number[];
+    targetData: number[];
+    gaps: number[];
+  }> {
+    try {
+      // Get traits for both profiles
+      const sourceTraits = await this.getTraitsForProfile(sourceProfileId);
+      const targetTraits = await this.getTraitsForProfile(targetProfileId);
+      
+      // Generate comparison visualization
+      return TraitVisualizationUtils.generateTraitComparisonData(
+        sourceTraits,
+        targetTraits
+      );
+    } catch (error) {
+      logger.error('Error generating trait comparison visualization', {
+        error,
+        sourceProfileId,
+        targetProfileId
+      });
+      return { categories: [], sourceData: [], targetData: [], gaps: [] };
+    }
+  }
+
+  /**
+   * Get context-adapted trait visualization
+   */
+  async getContextAdaptedTraitData(
+    profileId: string,
+    context: {
+      industry?: string;
+      role?: string;
+      careerStage?: string;
+    }
+  ): Promise<{
+    contextualizedTraits: any[];
+    focusAreas: string[];
+    contextDescription: string;
+  }> {
+    try {
+      const traits = await this.getTraitsForProfile(profileId);
+      
+      return TraitVisualizationUtils.generateContextAdaptedData(traits, context);
+    } catch (error) {
+      logger.error('Error generating context-adapted trait data', { error, profileId });
+      return { contextualizedTraits: [], focusAreas: [], contextDescription: '' };
+    }
+  }
+
+  /**
+   * Map trait name to appropriate category
+   */
+  private mapTraitNameToCategory(traitName: string): string {
+    const categoryMap: Record<string, string> = {
+      'Analytical Thinking': 'Cognitive',
+      'Systems Thinking': 'Cognitive',
+      'Creative Thinking': 'Cognitive',
+      'Strategic Thinking': 'Cognitive',
+      'Problem Solving': 'Cognitive',
+      
+      'Leadership': 'Relationship',
+      'Communication': 'Relationship',
+      'Collaboration': 'Relationship',
+      'Empathy': 'Relationship',
+      
+      'Efficiency': 'Execution',
+      'Initiative': 'Execution',
+      'Execution': 'Execution',
+      'Organization': 'Execution',
+      
+      'Adaptability': 'Self-Management',
+      'Resilience': 'Self-Management',
+      'Learning Agility': 'Self-Management',
+      'Self-Awareness': 'Self-Management',
+      
+      'Innovation': 'Motivation',
+      'Drive': 'Motivation',
+      'Ambition': 'Motivation',
+      'Passion': 'Motivation'
+    };
+
+    // Return mapped category or default to 'Cognitive'
+    return categoryMap[traitName] || 'Cognitive';
+  }
+
   /**
    * Robust correlation calculation with outlier handling
    */
