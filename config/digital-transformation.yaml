@@ -1,0 +1,68 @@
+---
+name: Digital Transformation
+description: Enterprise-wide digital strategy and execution leadership
+relevant_tags:
+  - digital transformation
+  - change management
+  - organizational development
+  - strategic vision
+  - process optimization
+  - technology roadmapping
+  - digital strategy
+common_questions:
+  - question: What is your vision of what our company will look like after digital transformation?
+    response_template: My vision for digital transformation focuses on creating adaptive organizations that can continuously evolve with changing market conditions and technologies. This involves building modular technical architectures, developing digital capabilities in the workforce, implementing data-driven decision making, and creating a culture of continuous innovation. The end state isn't a fixed target but an organization with the capabilities to continuously transform itself.
+  - question: Describe a significant digital transformation initiative you led and its outcomes.
+    response_template: At Sygnum Bank, I led a comprehensive transformation from reactive to proactive infrastructure management in a regulated crypto-finance environment. This involved implementing ITIL principles, rebuilding the IT operations team, and creating a roadmap integrating Microsoft 365, Teams, DevOps, and Infrastructure-as-Code. The result was a significant improvement in operational efficiency while maintaining strict regulatory compliance.
+  - question: How do you address resistance to change during transformation initiatives?
+    response_template: I approach resistance to change by focusing on three elements clear vision communication, stakeholder involvement, and demonstrable value creation. At Habitusnet, I implemented a change management framework that included regular stakeholder workshops, pilot programs with key influencers, and metrics-driven success demonstrations. This approach has consistently helped overcome initial resistance by building understanding and ownership of transformation initiatives.
+key_metrics:
+  - metric: Operational Efficiency Improvement
+    value: 65%
+    icon: chart-line
+  - metric: Deployment Time Reduction
+    value: 60%
+    icon: rocket
+  - metric: Digital Adoption Rate
+    value: 85%
+    icon: users
+  - metric: Process Automation
+    value: 70%
+    icon: cogs
+key_projects:
+  - title: DevSecOps Transformation
+    company: Habitusnet Consulting AG
+    description: Implemented security-first CI/CD pipelines with infrastructure as code for enterprise clients
+    image: devsecops.png
+    technologies:
+      - CI/CD
+      - Infrastructure as Code
+      - Security Integration
+    outcomes:
+      - Reduced deployment time by 60%
+      - Enhanced security posture
+      - Improved development velocity
+  - title: Modern Workplace Implementation
+    company: Habitusnet Consulting AG
+    description: Architected secure workplace environment with zero trust security model for hybrid work
+    image: modern_workplace.png
+    technologies:
+      - Microsoft 365
+      - Zero Trust Security
+      - Collaboration Tools
+    outcomes:
+      - Enabled seamless hybrid work
+      - Maintained strict security controls
+      - Improved collaboration efficiency by 45%
+  - title: FINMA-Approved IT Infrastructure
+    company: Sygnum Bank AG
+    description: Led transformation from reactive to proactive infrastructure management in regulated environment
+    image: finma_infrastructure.png
+    technologies:
+      - ITIL
+      - DevOps
+      - Infrastructure-as-Code
+    outcomes:
+      - Transitioned from reactive to proactive management
+      - Improved operational efficiency
+      - Maintained regulatory compliance

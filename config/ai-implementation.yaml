@@ -1,0 +1,69 @@
+---
+name: AI Implementation
+description: Enterprise AI integration and transformation leadership
+relevant_tags:
+  - AI
+  - LLM
+  - machine learning
+  - prompt engineering
+  - AI governance
+  - AI ethics
+  - enterprise integration
+common_questions:
+  - question: What experience do you have with LLM integration in enterprise environments?
+    response_template: I architected an enterprise-grade LLM integration platform for business process automation that included a sophisticated prompt management system with version control and performance analytics. The solution included custom connectors for Microsoft 365 and Dynamics 365, along with governance controls for responsible AI use. This reduced implementation time by 70% while ensuring regulatory compliance.
+  - question: How do you approach ethical considerations in AI projects?
+    response_template: My approach to AI ethics is built on three pillars governance, transparency, and continuous evaluation. For enterprise clients, I've implemented frameworks that include bias detection, explainability mechanisms, usage monitoring, and regular ethical reviews. This structured approach has allowed organizations to leverage AI capabilities while maintaining alignment with their values and regulatory requirements.
+  - question: How do you measure ROI for AI implementation projects?
+    response_template: I've developed a multi-dimensional ROI framework for AI implementations that goes beyond cost reduction to include productivity gains, error reduction, employee satisfaction, and new capability enablement. For example, an intelligent document processing system I implemented achieved an 85% reduction in manual processing while improving accuracy, but also enabled entirely new service offerings that weren't possible before.
+key_metrics:
+  - metric: AI Implementation Time Reduction
+    value: 70%
+    icon: bolt
+  - metric: Manual Processing Reduction
+    value: 85%
+    icon: robot
+  - metric: Alert Triage Time Reduction
+    value: 40%
+    icon: bell
+  - metric: New AI-Enabled Capabilities
+    value: 12+
+    icon: lightbulb
+key_projects:
+  - title: Enterprise LLM Integration Framework
+    company: Habitusnet Consulting AG
+    description: Designed and implemented an enterprise-grade LLM integration platform for business process automation
+    image: llm_integration.png
+    technologies:
+      - LLM
+      - Prompt Engineering
+      - Microsoft 365
+      - Dynamics 365
+    outcomes:
+      - Created sophisticated prompt management system with version control
+      - Implemented governance controls for responsible AI use
+      - Reduced implementation time by 70%
+  - title: Advanced Prompt Engineering Framework
+    company: Habitusnet Consulting AG
+    description: Developed enterprise framework for LLM prompt creation with version control, testing, and deployment capabilities
+    image: prompt_engineering.png
+    technologies:
+      - Prompt Engineering
+      - Version Control
+      - Testing Frameworks
+    outcomes:
+      - Standardized prompt development across enterprise
+      - Improved prompt performance by 45%
+      - Enabled non-technical teams to leverage AI capabilities
+  - title: Intelligent Document Processing System
+    company: Habitusnet Consulting AG
+    description: Architected end-to-end AI-powered document processing system for enterprise clients
+    image: document_processing.png
+    technologies:
+      - Computer Vision
+      - NLP
+      - Workflow Automation
+    outcomes:
+      - Reduced manual processing by 85%
+      - Improved accuracy by 30%
+      - Enabled new service offerings

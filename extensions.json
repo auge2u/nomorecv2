@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+    "github.vscode-pull-request-github",
+    "eamodio.gitlens",
+    "bradlc.vscode-tailwindcss",
+    "mikestead.dotenv",
+    "ms-azuretools.vscode-docker",
+    "cloudflare.cloudflare-workers-vscode",
+    "supabase.supabase-vscode"
+  ]
+}

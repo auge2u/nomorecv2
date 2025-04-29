@@ -1,0 +1,72 @@
+<!-- Project Showcase Section for the Interactive CV Tool -->
+<section id="project-showcase-section" class="bg-gray-50 py-12">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-10">
+            <h2 class="text-3xl font-bold text-gray-900 mb-4">Project Portfolio</h2>
+            <p class="text-lg text-gray-600 max-w-3xl mx-auto">
+                Explore concrete examples of my work across multiple domains, demonstrating my capabilities through tangible outcomes rather than abstract claims.
+            </p>
+        </div>
+
+        <!-- Project Category Navigation -->
+        <div id="project-categories" class="project-categories mb-8">
+            <!-- Categories will be populated by JavaScript -->
+        </div>
+
+        <!-- Industry Relevance Filter -->
+        <div class="flex flex-wrap items-center justify-between mb-6">
+            <div class="text-sm text-gray-500 mb-4 md:mb-0">
+                <span class="inline-block w-3 h-3 bg-transparent border-2 border-indigo-500 rounded-full mr-1"></span>
+                <span class="mr-4">Industry Relevant</span>
+                <span class="inline-block w-3 h-3 bg-transparent border-2 border-emerald-500 rounded-full mr-1"></span>
+                <span>Highly Relevant</span>
+            </div>
+            <div class="relative">
+                <select id="industry-filter" class="appearance-none bg-white border border-gray-300 rounded-md py-2 pl-3 pr-10 text-sm leading-5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="custom">All Industries</option>
+                    <option value="financial-services">Financial Services</option>
+                    <option value="tech-consulting">Technology Consulting</option>
+                    <option value="ai-implementation">AI Implementation</option>
+                    <option value="digital-transformation">Digital Transformation</option>
+                    <option value="startup-innovation">Startup/Innovation</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Cards Grid -->
+        <div id="project-showcase" class="project-showcase">
+            <!-- Project cards will be populated by JavaScript -->
+        </div>
+
+        <!-- Project Insights -->
+        <div class="mt-16 bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Project Insights</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-indigo-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-indigo-900 mb-2">Cross-Domain Integration</h4>
+                    <p class="text-sm text-indigo-700">My projects demonstrate the ability to integrate insights across technical, business, and social domains, creating solutions that address complex challenges holistically.</p>
+                </div>
+                <div class="bg-emerald-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-emerald-900 mb-2">Practical Innovation</h4>
+                    <p class="text-sm text-emerald-700">Each project balances innovative thinking with practical implementation, delivering tangible value while exploring new possibilities.</p>
+                </div>
+                <div class="bg-amber-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-amber-900 mb-2">Technical Depth</h4>
+                    <p class="text-sm text-amber-700">From AI implementation to systems architecture, these projects demonstrate deep technical expertise across multiple domains and technologies.</p>
+                </div>
+                <div class="bg-rose-50 p-4 rounded-lg">
+                    <h4 class="font-semibold text-rose-900 mb-2">Strategic Vision</h4>
+                    <p class="text-sm text-rose-700">My work consistently connects immediate solutions to longer-term strategic objectives, creating pathways for ongoing transformation and growth.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Project Detail Modal (will be created dynamically) -->
+<!-- The modal will be inserted here by JavaScript when a project is selected -->

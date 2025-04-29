@@ -1,0 +1,418 @@
+/* Main styles for the responsive CV presentation tool */
+
+/* Base styles */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Animation effects */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Perspective transition effects */
+.perspective-transition {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.perspective-transition:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Skill badges */
+.skill-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    margin: 0.25rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.skill-badge-tech {
+    background-color: rgba(79, 70, 229, 0.1);
+    color: #4F46E5;
+}
+
+.skill-badge-leadership {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #10B981;
+}
+
+.skill-badge-business {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #F59E0B;
+}
+
+.skill-badge-innovation {
+    background-color: rgba(236, 72, 153, 0.1);
+    color: #EC4899;
+}
+
+/* Experience timeline */
+.timeline {
+    position: relative;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.timeline::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    background-color: #e5e7eb;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    margin-left: -3px;
+    border-radius: 3px;
+}
+
+.timeline-container {
+    padding: 10px 40px;
+    position: relative;
+    background-color: inherit;
+    width: 50%;
+}
+
+.timeline-container::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    right: -10px;
+    background-color: white;
+    border: 4px solid #4F46E5;
+    top: 15px;
+    border-radius: 50%;
+    z-index: 1;
+}
+
+.timeline-left {
+    left: 0;
+}
+
+.timeline-right {
+    left: 50%;
+}
+
+.timeline-left::before {
+    content: " ";
+    height: 0;
+    position: absolute;
+    top: 22px;
+    width: 0;
+    z-index: 1;
+    right: 30px;
+    border: medium solid #e5e7eb;
+    border-width: 10px 0 10px 10px;
+    border-color: transparent transparent transparent #e5e7eb;
+}
+
+.timeline-right::before {
+    content: " ";
+    height: 0;
+    position: absolute;
+    top: 22px;
+    width: 0;
+    z-index: 1;
+    left: 30px;
+    border: medium solid #e5e7eb;
+    border-width: 10px 10px 10px 0;
+    border-color: transparent #e5e7eb transparent transparent;
+}
+
+.timeline-right::after {
+    left: -10px;
+}
+
+.timeline-content {
+    padding: 20px 30px;
+    background-color: white;
+    position: relative;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Responsive timeline */
+@media screen and (max-width: 768px) {
+    .timeline::after {
+        left: 31px;
+    }
+    
+    .timeline-container {
+        width: 100%;
+        padding-left: 70px;
+        padding-right: 25px;
+    }
+    
+    .timeline-container::before {
+        left: 60px;
+        border: medium solid #e5e7eb;
+        border-width: 10px 10px 10px 0;
+        border-color: transparent #e5e7eb transparent transparent;
+    }
+    
+    .timeline-left::after, .timeline-right::after {
+        left: 15px;
+    }
+    
+    .timeline-right {
+        left: 0%;
+    }
+}
+
+/* Value proposition cards */
+.value-card {
+    border-radius: 0.5rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.value-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.value-card-header {
+    padding: 1rem;
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: white;
+}
+
+.value-card-body {
+    padding: 1.5rem;
+    background-color: white;
+}
+
+/* Industry-specific colors */
+.financial-services-theme {
+    background-color: #1E40AF;
+}
+
+.tech-consulting-theme {
+    background-color: #6D28D9;
+}
+
+.ai-implementation-theme {
+    background-color: #047857;
+}
+
+.digital-transformation-theme {
+    background-color: #B91C1C;
+}
+
+.startup-innovation-theme {
+    background-color: #D97706;
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none;
+    }
+    
+    body {
+        font-size: 12pt;
+    }
+    
+    .page-break {
+        page-break-before: always;
+    }
+    
+    .container {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+/* Tooltip styles */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Infographic styles */
+.infographic-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+}
+
+.infographic-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.7));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 1.5rem;
+    color: white;
+}
+
+.infographic-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.infographic-description {
+    font-size: 1rem;
+    opacity: 0.9;
+}
+
+/* Leadership capability visualization */
+.capability-meter {
+    height: 8px;
+    border-radius: 4px;
+    background-color: #e5e7eb;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.capability-value {
+    height: 100%;
+    border-radius: 4px;
+}
+
+/* Perspective switcher */
+.perspective-switcher {
+    display: flex;
+    overflow-x: auto;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+.perspective-option {
+    flex: 0 0 auto;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+    border-radius: 9999px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.perspective-option:hover {
+    background-color: #f3f4f6;
+}
+
+.perspective-option.active {
+    background-color: #4F46E5;
+    color: white;
+}
+
+/* Multi-perspective visualization */
+.multi-perspective-container {
+    position: relative;
+    height: 400px;
+    margin: 2rem 0;
+}
+
+.perspective-node {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.perspective-node:hover {
+    transform: scale(1.1);
+}
+
+.perspective-connection {
+    position: absolute;
+    background-color: #e5e7eb;
+    transform-origin: 0 0;
+    z-index: -1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .multi-perspective-container {
+        height: 300px;
+    }
+    
+    .perspective-node {
+        width: 80px;
+        height: 80px;
+        font-size: 0.75rem;
+    }
+}

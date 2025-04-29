@@ -1,0 +1,1 @@
+./trait/services/trait.service.ts

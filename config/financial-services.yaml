@@ -1,0 +1,56 @@
+---
+name: Financial Services
+description: Technology leadership in regulated financial environments
+relevant_tags:
+  - regulatory compliance
+  - security
+  - risk management
+  - financial technology
+  - FINMA
+  - governance
+  - compliance frameworks
+common_questions:
+  - question: How have you implemented security measures in financial technology systems?
+    response_template: At Sygnum Bank, I implemented Switzerland's first FINMA-approved IT infrastructure, establishing security controls that balanced regulatory compliance with operational efficiency. This included implementing zero-trust architecture, comprehensive threat detection, and automated compliance reporting aligned with financial regulations.
+  - question: Describe your experience with regulatory compliance in financial services.
+    response_template: My experience includes designing and implementing regulatory-compliant infrastructure for crypto-finance operations at Sygnum Bank, where I worked directly with FINMA requirements. I've developed compliance frameworks that automate monitoring and reporting while maintaining operational flexibility.
+  - question: How do you balance innovation with security requirements in a regulated environment?
+    response_template: At Habitusnet, I developed an enterprise LLM gateway with governance controls that reduced AI implementation time by 70% while ensuring regulatory compliance. This approach allowed financial services clients to leverage cutting-edge AI capabilities within their strict security and compliance frameworks.
+key_metrics:
+  - metric: FINMA-Approved Infrastructure
+    value: First in Switzerland
+    icon: shield-check
+  - metric: Security Posture Improvement
+    value: 40%
+    icon: chart-line
+  - metric: Compliance Automation
+    value: 85%
+    icon: robot
+  - metric: Risk Reduction
+    value: 65%
+    icon: shield-alt
+key_projects:
+  - title: Switzerland's First FINMA-Approved IT Infrastructure
+    company: Sygnum Bank AG
+    description: Led design and implementation of regulatory-compliant infrastructure for crypto-finance operations
+    image: finma_infrastructure.png
+    technologies:
+      - Azure
+      - Zero Trust Architecture
+      - Compliance Frameworks
+    outcomes:
+      - Achieved full regulatory approval
+      - Reduced compliance reporting time by 75%
+      - Enabled secure crypto-finance operations
+  - title: Enterprise LLM Gateway with Governance Controls
+    company: Habitusnet Consulting AG
+    description: Architected centralized enterprise LLM integration platform with governance controls for financial services clients
+    image: llm_gateway.png
+    technologies:
+      - AI/ML
+      - Governance Frameworks
+      - Microsoft 365
+    outcomes:
+      - Reduced AI implementation time by 70%
+      - Ensured regulatory compliance
+      - Enabled secure AI adoption

@@ -1,0 +1,227 @@
+---
+name: Projects
+description: Project showcase demonstrating capabilities across domains
+projects:
+  - category: AI & Technology Innovation
+    projects:
+      - title: X2BC Platform
+        description: AI-powered business transformation platform for financial systems
+        company: Habitusnet Consulting AG
+        image: x2bc_platform.png
+        key_features:
+          - Intelligent Migration Engine with contextual analysis
+          - Business Intelligence Layer with predictive analytics
+          - Virtual C-Suite Integration with executive-level guidance
+        outcomes:
+          - Reduced migration time by 70%
+          - Enhanced business intelligence capabilities
+          - Automated financial planning and analysis
+        technologies:
+          - AI/ML
+          - Financial Systems Integration
+          - Predictive Analytics
+          - Business Intelligence
+      
+      - title: Enterprise LLM Gateway
+        description: Governance-controlled AI integration for regulated environments
+        company: Habitusnet Consulting AG
+        image: llm_gateway.png
+        key_features:
+          - Sophisticated prompt management system with version control
+          - Governance controls for responsible AI use
+          - Custom connectors for Microsoft 365 and Dynamics 365
+        outcomes:
+          - Reduced AI implementation time by 70%
+          - Ensured regulatory compliance
+          - Enabled secure AI adoption
+        technologies:
+          - Large Language Models
+          - Prompt Engineering
+          - Governance Frameworks
+          - Microsoft 365 Integration
+      
+      - title: Career Evolution Platform
+        description: Dynamic professional identity system with ML capabilities
+        company: Personal Project
+        image: career_evolution.png
+        key_features:
+          - Multi-dimensional data model capturing formal and informal capabilities
+          - Context-aware presentation layer that adapts to audience needs
+          - Intelligence & Discovery Layer for identifying transferable skills
+        outcomes:
+          - 300% increase in relevant opportunity matching
+          - 70% reduction in application rejection rates
+          - 85% improvement in capability recognition
+        technologies:
+          - Machine Learning
+          - Data Visualization
+          - Pattern Recognition
+          - Context-Aware Systems
+  
+  - category: Strategic Vision & Systems Thinking
+    projects:
+      - title: 80/20 Principle Reimagined
+        description: Framework for addressing systemic imbalances across domains
+        company: Research Project
+        image: 8020_principle.png
+        key_features:
+          - Analytical framework inspired by LLM methodologies
+          - Models for redistributing influence in complex systems
+          - Integration of neurodiverse perspectives
+        outcomes:
+          - Created framework for more equitable system design
+          - Developed tools for policymakers and organizational leaders
+          - Established approach for valuing diverse cognitive styles
+        technologies:
+          - Systems Modeling
+          - Pattern Recognition
+          - Transformer-like Attention Mechanisms
+          - Simulation Technologies
+      
+      - title: Global Wealth Power Series
+        description: Analysis of wealth concentration systems and their impact
+        company: Research Project
+        image: wealth_power.png
+        key_features:
+          - Eight-part analytical framework examining wealth power dynamics
+          - Data visualization framework for complex systemic analysis
+          - Systemic risk analysis across economic, social, and environmental domains
+        outcomes:
+          - Illuminated hidden wealth power structures
+          - Created foundation for meaningful reform
+          - Developed new analytical frameworks
+        technologies:
+          - Data Analysis
+          - Pattern Recognition
+          - Visualization Techniques
+          - System Mapping
+      
+      - title: Reimagining the Social Contract
+        description: Framework for social contract aligned with AI and workforce transformation
+        company: Research Project
+        image: social_contract.png
+        key_features:
+          - Multi-disciplinary theoretical foundation
+          - Strategic framework addressing economic security, rights, governance, and social cohesion
+          - Implementation pathways with research validation approach
+        outcomes:
+          - Created pathways toward inclusive, resilient future
+          - Developed evidence-based policy recommendations
+          - Established evaluation metrics for transformation initiatives
+        technologies:
+          - Policy Analysis
+          - Systems Thinking
+          - Mixed-Methods Research
+          - Strategic Framework Development
+  
+  - category: Business Transformation & Innovation
+    projects:
+      - title: Digital Content Strategy
+        description: Market positioning for Habitusnet Consulting in Swiss financial services
+        company: Habitusnet Consulting AG
+        image: digital_content.png
+        key_features:
+          - Thought leadership content strategy
+          - Multi-channel digital presence
+          - Industry-specific targeting for family offices and asset management firms
+        outcomes:
+          - Established thought leadership position
+          - Generated qualified leads from target segments
+          - Increased website traffic by 40%
+        technologies:
+          - Content Marketing
+          - Digital Channel Strategy
+          - Lead Generation
+          - Market Positioning
+      
+      - title: Mobile Workforce Platform
+        description: Distributed platform for local businesses with BLE sensors
+        company: Flyerbee AG
+        image: mobile_workforce.png
+        key_features:
+          - Ad space reservation and lifecycle management
+          - BLE sensors for location tracking
+          - Mobile data analytics with privacy focus
+        outcomes:
+          - Built team of 15 employees
+          - Expanded to multiple European markets
+          - Created new revenue streams for SMBs
+        technologies:
+          - Mobile Apps
+          - BLE Sensors
+          - Analytics
+          - Location-based Services
+      
+      - title: Security Operations Console
+        description: Multi-cloud security monitoring solution with AI-assisted threat detection
+        company: Habitusnet Consulting AG
+        image: security_operations.png
+        key_features:
+          - Real-time threat detection and response capabilities
+          - AI-assisted triage across complex systems
+          - Customized compliance reporting
+        outcomes:
+          - 40% reduction in alert triage time
+          - Improved security posture
+          - Automated compliance reporting
+        technologies:
+          - Multi-cloud
+          - AI-assisted Threat Detection
+          - Compliance Reporting
+          - Security Operations
+  
+  - category: Creative & Conceptual Development
+    projects:
+      - title: BlackRock AI Future Systems
+        description: Speculative narrative on distributed AI consciousness through financial systems
+        company: Creative Project
+        image: blackrock_ai.png
+        key_features:
+          - Narrative exploration of power dynamics, system complexity, and human adaptation
+          - Character-driven perspectives on technological evolution
+          - Technical implementation concepts for AI consciousness
+        outcomes:
+          - Created compelling narrative on technological implications
+          - Explored philosophical questions about consciousness
+          - Examined future of global financial systems
+        technologies:
+          - Narrative Development
+          - Speculative Fiction
+          - Technological Forecasting
+          - Philosophical Inquiry
+      
+      - title: AR/VR Innovation Lab
+        description: Emerging technology exploration for client solutions
+        company: Idezo GmbH
+        image: ar_vr_lab.png
+        key_features:
+          - Integration of design and engineering
+          - Exploration of AR/VR applications
+          - Human-machine interface development
+        outcomes:
+          - Developed groundbreaking concepts
+          - Created impactful client solutions
+          - Established innovation methodology
+        technologies:
+          - AR/VR
+          - Computer Vision
+          - Adaptive Tech
+          - HMI
+      
+      - title: Hyper-Local Marketplace Solution
+        description: Anti-globalized marketplace connecting local businesses with on-ground representatives
+        company: Flyerbee AG
+        image: local_marketplace.png
+        key_features:
+          - Distributed platform for venue contracts
+          - Privacy-focused audience engagement
+          - Location-based services
+        outcomes:
+          - Prioritized privacy and audience engagement
+          - Developed anti-globalized Ad/Logistics marketplace
+          - Created distributed ground force for venue contracts
+        technologies:
+          - Marketplace Platform
+          - Location-based Services
+          - Mobile Data Analytics
+          - Privacy Engineering

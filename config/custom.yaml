@@ -1,0 +1,69 @@
+---
+name: Custom Perspective
+description: Create a tailored view for specific roles
+relevant_tags:
+  - leadership
+  - AI transformation
+  - strategic vision
+  - technical expertise
+  - innovation
+  - team building
+  - business acumen
+common_questions:
+  - question: How have you leveraged AI and LLMs to build transformative strategies?
+    response_template: I've pioneered the integration of LLMs into enterprise environments, developing frameworks that allow organizations to leverage AI capabilities while maintaining governance and compliance. For example, I created an enterprise LLM gateway with sophisticated prompt management that reduced AI implementation time by 70% while ensuring regulatory compliance. This approach has enabled organizations to transform their operations by automating complex processes, enhancing decision-making, and creating entirely new capabilities.
+  - question: How do you balance technical expertise with business leadership?
+    response_template: My approach combines deep technical knowledge with strategic business thinking. At Habitusnet, I provided C-level consulting focused on aligning technology initiatives with business objectives, ensuring that technical solutions directly addressed organizational challenges. This balanced perspective has allowed me to bridge the gap between technical possibilities and business realities, creating technology strategies that deliver measurable value.
+  - question: What is your approach to leading through technological paradigm shifts?
+    response_template: I focus on creating adaptive organizations that can continuously evolve with changing technologies. This involves building modular technical architectures, developing digital capabilities in the workforce, implementing data-driven decision making, and fostering a culture of continuous learning. For example, at Sygnum Bank, I led a comprehensive transformation that prepared the organization for ongoing evolution in the rapidly changing crypto-finance landscape.
+key_metrics:
+  - metric: AI Implementation Time
+    value: 70% Reduction
+    icon: bolt
+  - metric: Client Retention
+    value: 95% Rate
+    icon: handshake
+  - metric: Team Growth
+    value: 15+ Members
+    icon: users
+  - metric: Innovation Projects
+    value: 20+ Delivered
+    icon: lightbulb
+key_projects:
+  - title: Enterprise LLM Integration Framework
+    company: Habitusnet Consulting AG
+    description: Designed and implemented an enterprise-grade LLM integration platform for business process automation
+    image: llm_integration.png
+    technologies:
+      - LLM
+      - Prompt Engineering
+      - Microsoft 365
+      - Dynamics 365
+    outcomes:
+      - Created sophisticated prompt management system with version control
+      - Implemented governance controls for responsible AI use
+      - Reduced implementation time by 70%
+  - title: Switzerland's First FINMA-Approved IT Infrastructure
+    company: Sygnum Bank AG
+    description: Led design and implementation of regulatory-compliant infrastructure for crypto-finance operations
+    image: finma_infrastructure.png
+    technologies:
+      - Azure
+      - Zero Trust Architecture
+      - Compliance Frameworks
+    outcomes:
+      - Achieved full regulatory approval
+      - Reduced compliance reporting time by 75%
+      - Enabled secure crypto-finance operations
+  - title: Mobile Workforce Platform
+    company: Flyerbee AG
+    description: Developed platform featuring ad space reservation and lifecycle management with BLE sensors
+    image: mobile_workforce.png
+    technologies:
+      - Mobile Apps
+      - BLE Sensors
+      - Analytics
+    outcomes:
+      - Built team of 15 employees
+      - Expanded to multiple European markets
+      - Created new revenue streams for SMBs

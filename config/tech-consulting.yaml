@@ -1,0 +1,68 @@
+---
+name: Technology Consulting
+description: Strategic consulting and enterprise solution delivery
+relevant_tags:
+  - consulting
+  - solution architecture
+  - client engagement
+  - technical leadership
+  - strategic consulting
+  - enterprise solutions
+  - project management
+common_questions:
+  - question: Describe a challenging technology consulting project you've led and its outcomes.
+    response_template: I led the implementation of a comprehensive security operations platform for a multi-cloud environment at a major financial institution. The project involved integrating real-time threat detection with AI-assisted triage across complex legacy and modern systems. By implementing a phased approach with continuous stakeholder engagement, we achieved a 40% reduction in alert triage time while significantly improving security posture.
+  - question: How do you approach building client relationships and understanding their needs?
+    response_template: My approach to client relationships begins with deep listening to understand both stated and unstated needs. At Habitusnet Consulting, I maintained a 95% client retention rate over a decade by focusing on long-term partnerships rather than transactional engagements. This involved regular strategic reviews, proactive technology roadmapping, and ensuring that technical solutions directly addressed business objectives.
+  - question: How do you stay current with emerging technologies?
+    response_template: I maintain a structured approach to technology currency that includes dedicated research time, participation in technical communities, hands-on experimentation with emerging technologies, and a network of specialists across various domains. This approach allowed me to successfully position clients for AI adoption well before it became mainstream, giving them competitive advantages in their industries.
+key_metrics:
+  - metric: Client Retention Rate
+    value: 95%
+    icon: handshake
+  - metric: Alert Triage Time Reduction
+    value: 40%
+    icon: bell
+  - metric: Infrastructure Deployment Time
+    value: 65%
+    icon: server
+  - metric: Business Growth
+    value: 100%
+    icon: chart-line
+key_projects:
+  - title: Security Operations Console
+    company: Habitusnet Consulting AG
+    description: Architected multi-cloud security monitoring solution with AI-assisted threat detection
+    image: security_operations.png
+    technologies:
+      - Multi-cloud
+      - AI-assisted Threat Detection
+      - Compliance Reporting
+    outcomes:
+      - 40% reduction in alert triage time
+      - Improved security posture
+      - Automated compliance reporting
+  - title: Cloud Infrastructure Automation Platform
+    company: Habitusnet Consulting AG
+    description: Created comprehensive IaC framework for rapid deployment of secure, compliant environments
+    image: cloud_automation.png
+    technologies:
+      - Infrastructure-as-Code
+      - Azure
+      - Compliance Automation
+    outcomes:
+      - 65% reduction in infrastructure deployment time
+      - Maintained security best practices
+      - Standardized deployment patterns
+  - title: Microsoft 365 Enterprise Migration Toolkit
+    company: Habitusnet Consulting AG
+    description: Developed migration framework for complex enterprise environments
+    image: m365_migration.png
+    technologies:
+      - Microsoft 365
+      - Migration Tools
+      - Security Hardening
+    outcomes:
+      - 30% reduction in migration timeframes
+      - Improved security posture
+      - Automated assessment and planning

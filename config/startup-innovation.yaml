@@ -1,0 +1,69 @@
+---
+name: Startup/Innovation
+description: Building and scaling innovative ventures
+relevant_tags:
+  - startup
+  - innovation
+  - entrepreneurship
+  - venture building
+  - product development
+  - team leadership
+  - market strategy
+common_questions:
+  - question: Describe a significant challenge you faced while building a startup and how you overcame it.
+    response_template: As CEO and co-founder of Flyerbee, I faced the challenge of building a marketplace platform that required both supply and demand sides to grow simultaneously. We addressed this through a phased approach, first focusing on high-value venues to create supply, then leveraging that exclusive inventory to attract advertisers. This strategy allowed us to grow to 15 employees and establish a viable marketplace before the pandemic disrupted our in-person business model.
+  - question: How do you approach innovation in resource-constrained environments?
+    response_template: At Idezo, I led an innovation lab focused on emerging technologies with limited resources. Our approach was to create rapid prototyping capabilities, develop a network of specialized partners, and implement a rigorous prioritization framework for initiatives. This allowed us to develop groundbreaking concepts in AR/VR and computer vision while maintaining lean operations and focused resource allocation.
+  - question: How do you build and motivate high-performing teams in startup environments?
+    response_template: My approach to building teams in startup environments focuses on finding versatile talent with growth mindsets, creating clear alignment around mission and objectives, implementing lightweight but effective processes, and fostering a culture of ownership and accountability. At Flyerbee, this approach enabled us to build a team that could adapt quickly to market feedback and evolving business requirements.
+key_metrics:
+  - metric: Team Growth
+    value: 15+
+    icon: users
+  - metric: Investor Funding
+    value: $2.5M
+    icon: money-bill
+  - metric: Market Expansion
+    value: 3 Countries
+    icon: globe
+  - metric: Technology Innovations
+    value: 12+
+    icon: lightbulb
+key_projects:
+  - title: Mobile Workforce Platform
+    company: Flyerbee AG
+    description: Developed platform featuring ad space reservation and lifecycle management with BLE sensors
+    image: mobile_workforce.png
+    technologies:
+      - Mobile Apps
+      - BLE Sensors
+      - Analytics
+    outcomes:
+      - Built team of 15 employees
+      - Expanded to multiple European markets
+      - Created new revenue streams for SMBs
+  - title: Hyper-Local Marketplace Solution
+    company: Flyerbee AG
+    description: Led development of distributed platform connecting local businesses with on-ground representatives
+    image: local_marketplace.png
+    technologies:
+      - Marketplace Platform
+      - Location-based Services
+      - Mobile Data Analytics
+    outcomes:
+      - Prioritized privacy and audience engagement
+      - Developed anti-globalized Ad/Logistics marketplace
+      - Created distributed ground force for venue contracts
+  - title: AR/VR Innovation Lab
+    company: Idezo GmbH
+    description: Directed innovation lab focused on emerging technologies including AR/VR and computer vision
+    image: ar_vr_lab.png
+    technologies:
+      - AR/VR
+      - Computer Vision
+      - Adaptive Tech
+      - HMI
+    outcomes:
+      - Developed groundbreaking concepts
+      - Integrated design and engineering
+      - Created impactful client solutions
